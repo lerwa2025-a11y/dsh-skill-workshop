@@ -1,0 +1,66 @@
+{
+  "name": "dsh-skill-workshop",
+  "version": "0.1.0",
+  "description": "技能管理：左侧栏入口、技能与回收站两个分区，使用 / 编辑 / 开关 / 调用方式 / 版本历史 / 删除恢复",
+  "license": "MIT",
+  "type": "module",
+  "exports": {
+    ".": "./index.js",
+    "./client": "./client.js",
+    "./locale/*.json": "./locale/*.json",
+    "./icon": "./icon.svg"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "immediately": true,
+      "external": [
+        "react-dom"
+      ],
+      "inject": [
+        "@deepseek-ai/dsh-client-ui-layout",
+        "@deepseek-ai/dsh-client-ui-sidebar"
+      ]
+    }
+  },
+  "keywords": [
+    "dsh",
+    "dsh-plugin",
+    "deepseek-harness",
+    "skills",
+    "skill-manager",
+    "cordis"
+  ],
+  "contributors": [
+    {
+      "name": "omdsh-dev",
+      "url": "https://github.com/omdsh-dev",
+      "note": "Author of dsh-mnemon / dsh-mnemon-source-skills (MIT), whose skills page and trash page design this plugin follows"
+    }
+  ],
+  "author": {
+    "name": "lerwa2025-a11y",
+    "url": "https://github.com/lerwa2025-a11y"
+  },
+  "homepage": "https://github.com/lerwa2025-a11y/dsh-skill-workshop#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/lerwa2025-a11y/dsh-skill-workshop.git"
+  },
+  "bugs": {
+    "url": "https://github.com/lerwa2025-a11y/dsh-skill-workshop/issues"
+  },
+  "files": [
+    "index.js",
+    "client.js",
+    "cordis.patch.yml",
+    "locale/*.json",
+    "icon.svg",
+    "README.md",
+    "LICENSE"
+  ],
+  "private": false
+}

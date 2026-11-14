@@ -1,0 +1,842 @@
+/*
+ * 技能管理. Quiet surfaces borrowed from the skills page this replaces:
+ * hairlines instead of boxes, weight and grey for hierarchy, and short, soft
+ * motion where something opens or arrives.
+ *
+ * Every class is prefixed `ss`, and every colour comes from a `--ss-*` token
+ * declared once on `.ssShell`, so the sheet carries no dependency on another
+ * plugin's variables.
+ */
+
+.ssShell {
+  /*
+   * Where the page head starts, so it lines up with the sidebar's New Session
+   * row rather than floating above it.
+   *
+   * The centre column already clears the Windows caption (the frame pads it
+   * out); what remains is the sidebar's brand row above New Session: 40px of
+   * row plus that row's 6px offset. Those are the sidebar's own geometry, read
+   * from its published rules — never measured off its DOM, which belongs to
+   * another plugin.
+   *
+   * macOS pads nothing in the frame and keeps a 52px strip in the sidebar
+   * instead, so the value follows the frame's published clearance there.
+   */
+  --ss-head-top: 46px;
+  --ss-bg: var(--dsw-alias-bg-base);
+  --ss-layer-1: var(--dsw-alias-bg-layer-1);
+  --ss-fill: var(--dsw-alias-bg-module-platform);
+  --ss-input: var(--dsw-alias-bg-layer-1);
+  --ss-text: var(--dsw-alias-label-primary);
+  --ss-muted: var(--dsw-alias-label-secondary);
+  --ss-faint: var(--dsw-alias-label-tertiary);
+  --ss-line: var(--dsw-alias-border-l2);
+  --ss-line-strong: var(--dsw-alias-border-l3);
+  --ss-field-line: var(--dsw-alias-border-l4);
+  --ss-card-line: var(--dsw-alias-settings-card-stroke);
+  --ss-accent: var(--dsw-alias-state-business-primary);
+  --ss-hover: var(--dsw-alias-interactive-bg-hover);
+  --ss-danger: var(--dsw-alias-state-error-primary);
+  --ss-success: var(--dsw-alias-state-success-primary);
+  --ss-warn: var(--dsw-alias-state-warn-primary);
+  --ss-focus: var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary));
+  --ss-code: var(--ds-font-family-code, "SFMono-Regular", Consolas, monospace);
+  --ss-sans: var(--dsw-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+
+  box-sizing: border-box;
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex-direction: column;
+  overflow: hidden;
+  height: 100%;
+  color: var(--ss-text);
+  background: var(--ss-bg);
+  font: 13px/20px var(--ss-sans);
+  -webkit-tap-highlight-color: transparent;
+}
+/* Windows desktop: the frame pads out the caption, and the brand row is 40px
+   with New Session 6px below it. */
+html[data-windows-titlebar] .ssShell { --ss-head-top: 46px; }
+/* macOS desktop: the frame pads nothing and the sidebar keeps its own 52px
+   strip, whose published clearance is the same measure. */
+html[data-platform='darwin'] .ssShell { --ss-head-top: var(--dsh-frame-top-clearance, 48px); }
+html[data-platform='darwin'][data-fullscreen] .ssShell { --ss-head-top: 20px; }
+html[data-windows-titlebar][data-fullscreen] .ssShell { --ss-head-top: 16px; }
+/* Plain Web: no caption and no strip, so the sidebar's full brand row shows. */
+html:not([data-platform]):not([data-windows-titlebar]) .ssShell { --ss-head-top: 60px; }
+
+.ssShell *,
+.ssShell *::before,
+.ssShell *::after { box-sizing: border-box; }
+:where(.ssShell) :where(button, input, select, textarea) { color: inherit; font: inherit; }
+.ssShell button:focus-visible,
+.ssShell input:focus-visible,
+.ssShell select:focus-visible,
+.ssShell textarea:focus-visible,
+.ssShell summary:focus-visible { outline: var(--dsw-focus-ring-width, 2px) solid var(--ss-focus); outline-offset: 2px; }
+.ssShell :is(textarea, input:not([type='checkbox'], [type='radio'])):focus-visible { outline: none; }
+.ssShell input[type='search']:focus-visible { outline: 2px solid var(--ss-focus); outline-offset: -1px; }
+.ssShell code { font-family: var(--ss-code); font-size: .92em; }
+
+/* ---- the page frame ------------------------------------------------------- */
+
+/*
+ * The page head sits where the sidebar's New Session row sits.
+ *
+ * A global panel occupies the centre column, whose own top already clears the
+ * Windows caption (`.frame` padding). What is left is the sidebar's brand row:
+ * `windowDrag` measures the real offsets and publishes them as variables, and
+ * the fallback below is the same sum for a composition that does not.
+ */
+/* The one header block: the title row, then the tab row, then one hairline. */
+.ssHead {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  border-bottom: .5px solid var(--ss-line);
+  background: var(--ss-bg);
+}
+
+.ssMasthead {
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+  padding: var(--ss-head-top, 46px) 24px 0;
+}
+.ssHeading { display: flex; min-width: 0; flex: 1; flex-direction: column; gap: 1px; padding-bottom: 8px; }
+.ssHeading h2 { margin: 0; font-size: 14px; font-weight: 600; line-height: 22px; }
+.ssHeading p { margin: 0; overflow: hidden; color: var(--ss-faint); font-size: 12px; line-height: 18px; text-overflow: ellipsis; white-space: nowrap; }
+.ssMastheadActions { display: flex; flex: none; align-items: center; gap: 8px; padding-bottom: 8px; }
+
+.ssTabs { display: flex; min-width: 0; flex: none; gap: 22px; overflow-x: auto; padding: 0 24px; scrollbar-width: none; }
+.ssTabs::-webkit-scrollbar { display: none; }
+.ssTabs button {
+  position: relative;
+  min-width: max-content;
+  /* The header's own hairline is the rule the selected tab sits on; a tab's
+     underline covers it rather than stacking a second one. */
+  margin-bottom: -1px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  padding: 6px 1px 9px;
+  color: var(--ss-faint);
+  background: none;
+  font-size: 13px;
+  line-height: 20px;
+  cursor: pointer;
+}
+.ssTabs button:hover { color: var(--ss-text); }
+.ssTabs button[data-active] { border-bottom-color: var(--ss-text); color: var(--ss-text); }
+
+.ssBody { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior-y: contain; padding: 16px 24px 24px; }
+.ssPage { display: flex; min-width: 0; flex-direction: column; gap: 12px; animation: ss-arrive 220ms cubic-bezier(.2, 0, 0, 1); }
+
+@keyframes ss-arrive {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes ss-pop {
+  0% { opacity: 0; transform: scale(.6); }
+  70% { transform: scale(1.08); }
+  100% { opacity: 1; transform: none; }
+}
+@keyframes ss-spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ---- text, links, feedback ------------------------------------------------ */
+
+.ssMuted { margin: 0; color: var(--ss-faint); font-size: 12px; line-height: 18px; }
+.ssBusy { display: inline-flex; align-items: center; gap: 8px; padding: 6px 0; color: var(--ss-muted); font-size: 12px; line-height: 18px; }
+.ssSpinner {
+  width: 12px;
+  height: 12px;
+  flex: none;
+  border: 1.5px solid var(--ss-line-strong, var(--ss-line));
+  border-top-color: var(--ss-accent);
+  border-radius: 999px;
+  animation: ss-spin 800ms linear infinite;
+}
+
+.ssLink {
+  border: 0;
+  border-radius: var(--dsw-radius-xs, 4px);
+  padding: 0 2px;
+  color: var(--ss-accent);
+  background: transparent;
+  font: inherit;
+  font-size: 12px;
+  line-height: 18px;
+  cursor: pointer;
+  transition: background-color 120ms ease;
+}
+.ssLink:hover { background: color-mix(in srgb, var(--ss-accent) 8%, transparent); }
+
+.ssAlert,
+.ssNotice {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+  padding: 8px 10px 8px 12px;
+  border-radius: var(--dsw-radius-md);
+  color: var(--ss-text);
+  font-size: 12px;
+  line-height: 18px;
+}
+.ssAlert { background: color-mix(in srgb, var(--ss-danger) 9%, transparent); }
+.ssNotice { background: color-mix(in srgb, var(--ss-success) 9%, transparent); }
+.ssAlert > span,
+.ssNotice > span { min-width: 0; flex: 1; overflow-wrap: anywhere; }
+/* The failure list stays folded: a big group can fail many skills at once. */
+.ssAlertDetail { flex: 1 1 100%; min-width: 0; }
+.ssAlertDetail summary { width: fit-content; color: var(--ss-muted); cursor: pointer; }
+.ssAlertDetail ul { display: grid; gap: 4px; margin: 6px 0 0; padding: 0; list-style: none; }
+.ssAlertDetail li { display: flex; gap: 8px; min-width: 0; }
+.ssAlertDetail code { flex: none; color: var(--ss-text); font: 11px/18px var(--ss-code); }
+.ssAlertDetail li > span { min-width: 0; overflow-wrap: anywhere; color: var(--ss-muted); }
+/* An alert that carries a folded list lays out as a block, not one line. */
+.ssAlert:has(.ssAlertDetail) { flex-wrap: wrap; }
+
+.ssDismiss {
+  display: grid;
+  width: 20px;
+  height: 20px;
+  flex: none;
+  place-items: center;
+  border: 0;
+  border-radius: var(--dsw-radius-xs, 4px);
+  padding: 0;
+  color: inherit;
+  background: transparent;
+  font-size: 15px;
+  line-height: 1;
+  opacity: .55;
+  cursor: pointer;
+  transition: opacity 120ms ease, background-color 120ms ease;
+}
+.ssDismiss:hover { background: var(--ss-hover); opacity: 1; }
+
+
+.ssWarn { margin: 0; padding: 8px 12px; border-radius: var(--dsw-radius-md); color: var(--ss-text); background: color-mix(in srgb, var(--ss-warn) 11%, transparent); font-size: 12px; line-height: 18px; }
+
+.ssBadge {
+  display: inline-block;
+  min-width: 16px;
+  margin-left: 6px;
+  padding: 0 5px;
+  border-radius: 999px;
+  color: var(--dsw-alias-label-inverse, #fff);
+  background: var(--ss-accent);
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 16px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  animation: ss-pop 260ms cubic-bezier(.2, 0, 0, 1);
+}
+
+/* ---- quiet buttons -------------------------------------------------------- */
+
+.ssIconButton {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  flex: none;
+  place-items: center;
+  border: 0;
+  border-radius: var(--dsw-radius-sm);
+  padding: 0;
+  color: var(--ss-muted);
+  background: transparent;
+  cursor: pointer;
+  transition: color 120ms ease, background-color 120ms ease;
+}
+.ssIconButton:hover:not(:disabled),
+.ssIconButton[aria-expanded='true'] { color: var(--ss-text); background: var(--ss-hover); }
+.ssIconButton:disabled { cursor: default; opacity: .45; }
+
+/* ---- empty states --------------------------------------------------------- */
+
+.ssEmpty { display: grid; min-height: 280px; place-content: center; justify-items: center; gap: 6px; animation: ss-arrive 260ms cubic-bezier(.2, 0, 0, 1); }
+.ssEmptyGlyph { color: var(--ss-faint); font-size: 22px; line-height: 1; }
+.ssEmptyTitle { margin: 0; font-size: 14px; font-weight: 600; line-height: 22px; }
+.ssEmptyBody { margin: 0; max-width: 42ch; color: var(--ss-muted); font-size: 12px; line-height: 18px; text-align: center; }
+.ssEmptyActions { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin-top: 4px; }
+
+/* ---- list and detail ------------------------------------------------------ */
+
+.ssSplit { display: grid; min-height: 560px; grid-template-columns: minmax(268px, 340px) minmax(0, 1fr); gap: 12px; }
+.ssList,
+.ssPane { min-width: 0; border: .5px solid var(--ss-card-line); border-radius: var(--dsw-radius-lg); }
+.ssList { display: flex; flex-direction: column; overflow: hidden; padding-bottom: 6px; }
+.ssPane { padding: clamp(16px, 2vw, 24px); overflow: hidden; }
+
+/* Keep each list beside its detail while browsing long skills. */
+.ssSkillsSplit { height: max(320px, calc(100dvh - 320px)); min-height: 0; }
+.ssSkillsSplit > .ssList,
+.ssSkillsSplit > .ssPane { min-height: 0; overflow-y: auto; overscroll-behavior-y: contain; }
+.ssSkillsSplit > .ssList > * { flex-shrink: 0; }
+.ssSkillsSplit > .ssList { height: 100%; box-sizing: border-box; }
+
+.ssListBar { display: flex; align-items: center; gap: 8px; padding: 10px; border-bottom: .5px solid var(--ss-line); }
+.ssListBar > :first-child { min-width: 0; flex: 1; }
+.ssSearch {
+  width: 100%;
+  min-width: 0;
+  height: 28px;
+  border: .5px solid var(--ss-field-line);
+  border-radius: var(--dsw-radius-md);
+  outline: 0;
+  padding: 0 9px;
+  color: var(--ss-text);
+  background: var(--ss-input);
+  font: inherit;
+  font-size: 12px;
+  line-height: 26px;
+  transition: border-color 120ms ease;
+}
+.ssSearch::placeholder { color: var(--ss-faint); }
+.ssSearch:focus { border-color: var(--ss-accent); }
+.ssListNote { margin: 0; padding: 18px 16px; color: var(--ss-faint); font-size: 12px; line-height: 18px; text-align: center; }
+.ssListGroup h5 { display: flex; align-items: center; margin: 10px 10px 2px 12px; color: var(--ss-faint); font-size: 11px; font-weight: 500; letter-spacing: .02em; line-height: 16px; }
+.ssGroupToggle { display: flex; width: 100%; align-items: center; gap: 8px; border: 0; padding: 4px 0; color: inherit; background: transparent; font: inherit; text-align: start; cursor: pointer; }
+.ssGroupToggle > :nth-child(2) { min-width: 0; flex: 1; overflow: hidden; text-overflow: ellipsis; }
+.ssGroupToggle > :last-child { flex: none; }
+.ssGroupToggle small { display: block; overflow: hidden; font-size: 10px; font-weight: 400; text-overflow: ellipsis; }
+
+/* A skill row: icon, name and one line, then Use on hover and the switch. */
+.ssIcon {
+  display: grid;
+  width: 30px;
+  height: 30px;
+  flex: none;
+  place-items: center;
+  border-radius: var(--dsw-radius-md);
+  color: var(--ss-muted);
+  background: var(--ss-fill);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1;
+  transition: color 140ms ease, background-color 140ms ease;
+}
+.ssRow {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 2px 6px 0;
+  padding-right: 8px;
+  border-radius: var(--dsw-radius-md);
+  transition: background-color 140ms ease;
+}
+.ssRow:hover { background: var(--ss-hover); }
+.ssRow[data-selected] { background: var(--ss-fill); }
+.ssRow[data-selected] .ssIcon { color: var(--ss-text); background: var(--ss-layer-1, var(--ss-hover)); }
+.ssRow[data-off] .ssRowText { opacity: .55; }
+.ssRowMain { display: flex; min-width: 0; flex: 1; align-items: center; gap: 10px; border: 0; padding: 8px 0 8px 8px; color: var(--ss-text); background: transparent; font: inherit; text-align: left; cursor: pointer; }
+.ssRowMain:focus-visible { border-radius: var(--dsw-radius-md); outline: none; box-shadow: inset 0 0 0 2px var(--ss-focus); }
+.ssRowText { display: grid; min-width: 0; gap: 1px; transition: opacity 140ms ease; }
+.ssRowText strong { display: flex; min-width: 0; align-items: center; gap: 6px; font-size: 13px; font-weight: 500; line-height: 20px; white-space: nowrap; }
+.ssRowText strong > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.ssRowText small { overflow: hidden; color: var(--ss-faint); font-size: 12px; line-height: 18px; text-overflow: ellipsis; white-space: nowrap; }
+.ssRowActions { display: flex; flex: none; align-items: center; gap: 8px; }
+.ssUse { opacity: 0; transform: translateX(4px); pointer-events: none; transition: opacity 140ms ease, transform 180ms cubic-bezier(.2, 0, 0, 1); }
+.ssRow:hover .ssUse,
+.ssRow:focus-within .ssUse { opacity: 1; transform: none; pointer-events: auto; }
+@media (hover: none) { .ssUse { opacity: 1; transform: none; pointer-events: auto; } }
+
+.ssProblems { margin: 12px 12px 4px; color: var(--ss-faint); font-size: 12px; line-height: 18px; }
+.ssProblems summary { width: fit-content; border-radius: var(--dsw-radius-xs, 4px); padding: 0 2px; cursor: pointer; }
+.ssProblems summary:hover { color: var(--ss-muted); }
+.ssProblems ul { display: grid; gap: 6px; margin: 8px 0 0; padding: 0; list-style: none; }
+.ssProblems li { display: grid; gap: 2px; }
+.ssProblems code { color: var(--ss-muted); font: 11px/16px var(--ss-code); }
+
+/* ---- detail --------------------------------------------------------------- */
+
+.ssDetail { display: grid; min-width: 0; grid-template-columns: minmax(0, 1fr); gap: 14px; animation: ss-arrive 200ms cubic-bezier(.2, 0, 0, 1); }
+.ssDetailHead { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+.ssDetailHead > div:first-child { display: grid; min-width: 0; gap: 4px; }
+.ssDetailHead h3 { margin: 0; overflow-wrap: anywhere; font-size: 17px; font-weight: 600; line-height: 26px; }
+.ssDetailHead p { margin: 0; color: var(--ss-muted); font-size: 13px; line-height: 20px; }
+.ssDetailActions { display: flex; flex: none; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 6px; }
+.ssMeta { display: flex; min-width: 0; flex-wrap: wrap; align-items: center; gap: 0 6px; color: var(--ss-faint); font-size: 12px; line-height: 18px; }
+.ssMeta > * + *::before { content: '·'; margin-right: 6px; color: var(--ss-line-strong, var(--ss-faint)); }
+.ssMeta code { min-width: 0; max-width: 100%; overflow: hidden; font: 11px/18px var(--ss-code); text-overflow: ellipsis; white-space: nowrap; }
+.ssInvocation { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.ssInvocationHint { flex: 1 1 100%; margin: 0; color: var(--ss-faint); font-size: 12px; line-height: 18px; }
+.ssInvocationLabel { color: var(--ss-muted); font-size: 12px; line-height: 18px; }
+.ssInvocation select {
+  height: 28px;
+  /* The labels name both surfaces, so the field sizes to its longest option
+     instead of clipping at the column edge. */
+  min-width: 16em;
+  max-width: 100%;
+  border: .5px solid var(--ss-field-line);
+  border-radius: var(--dsw-radius-md);
+  padding: 0 24px 0 8px;
+  color: var(--ss-text);
+  background: var(--ss-input);
+  font-size: 12px;
+  line-height: 26px;
+  cursor: pointer;
+}
+.ssWhen { margin: 0; color: var(--ss-muted); font-size: 12px; line-height: 18px; }
+
+/* ---- a skill's SKILL.md, read as a document ------------------------------- */
+
+.ssDoc { min-width: 0; overflow-wrap: anywhere; color: var(--ss-text); font-size: 13px; line-height: 1.75; }
+.ssDoc > :first-child { margin-top: 0; }
+.ssDoc > :last-child { margin-bottom: 0; }
+.ssDoc h1, .ssDoc h2, .ssDoc h3, .ssDoc h4 { margin: 1.4em 0 .5em; color: var(--ss-text); font-weight: 600; line-height: 1.4; }
+.ssDoc h1 { font-size: 1.25em; }
+.ssDoc h2 { font-size: 1.1em; }
+.ssDoc h3, .ssDoc h4 { font-size: 1em; }
+.ssDoc p, .ssDoc ul, .ssDoc ol, .ssDoc blockquote, .ssDoc table, .ssDoc pre { margin: .7em 0; }
+.ssDoc ul, .ssDoc ol { padding-left: 1.5em; }
+.ssDoc li + li { margin-top: .25em; }
+.ssDoc li::marker { color: var(--ss-faint); }
+.ssDoc blockquote { margin-inline: 0; padding: .1em 1em; border-left: 2px solid var(--ss-line-strong, var(--ss-line)); color: var(--ss-muted); }
+.ssDoc code { padding: .12em .38em; border-radius: var(--dsw-radius-xs, 4px); color: var(--ss-text); background: var(--dsw-alias-markdown-inline-code, var(--ss-fill)); font: .9em/1.55 var(--ss-code); }
+.ssDoc pre { max-width: 100%; overflow: auto; padding: 10px 14px; border-radius: var(--dsw-radius-md); background: var(--dsw-alias-markdown-code-block, var(--ss-fill)); }
+.ssDoc pre code { padding: 0; background: transparent; font-size: 12px; }
+.ssDoc a { color: var(--ss-accent); text-decoration-thickness: 1px; text-underline-offset: 3px; }
+.ssDoc hr { margin: 1.6em 0; border: 0; border-top: .5px solid var(--ss-line); }
+.ssDoc table { display: block; max-width: 100%; overflow-x: auto; border-collapse: collapse; font-size: 12px; }
+.ssDoc th, .ssDoc td { padding: 6px 10px; border: .5px solid var(--ss-line); text-align: left; vertical-align: top; }
+.ssDoc th { background: var(--ss-fill); font-weight: 500; }
+.ssDoc img { max-width: 100%; height: auto; border-radius: var(--dsw-radius-sm); }
+
+/* ---- folded sections ------------------------------------------------------ */
+
+.ssFolds { display: grid; min-width: 0; grid-template-columns: minmax(0, 1fr); margin-top: 4px; border-top: .5px solid var(--ss-line); }
+.ssFold { min-width: 0; border-bottom: .5px solid var(--ss-line); }
+.ssFold > header { display: flex; min-height: 40px; align-items: center; justify-content: space-between; gap: 12px; }
+.ssFold > header > button {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  align-items: center;
+  gap: 8px;
+  margin-left: -4px;
+  border: 0;
+  border-radius: var(--dsw-radius-sm);
+  padding: 8px 4px;
+  color: var(--ss-text);
+  background: transparent;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 20px;
+  text-align: left;
+  cursor: pointer;
+}
+.ssChevron { flex: none; color: var(--ss-faint); transform: rotate(-90deg); transition: transform 180ms cubic-bezier(.2, 0, 0, 1), color 120ms ease; }
+.ssFold[data-open] > header > button > .ssChevron { transform: none; }
+.ssFold > header > button:hover > .ssChevron { color: var(--ss-text); }
+.ssFold > header > button > small { min-width: 0; overflow: hidden; color: var(--ss-faint); font-size: 12px; font-weight: 400; text-overflow: ellipsis; white-space: nowrap; }
+.ssFold > header > div { display: flex; align-items: center; gap: 6px; }
+.ssFoldBody { display: grid; min-width: 0; grid-template-columns: minmax(0, 1fr); gap: 10px; padding: 2px 0 14px; }
+
+/* ---- versions and files --------------------------------------------------- */
+
+.ssVersions { display: grid; grid-template-columns: minmax(0, 1fr); gap: 1px; margin: 0; padding: 0; list-style: none; }
+.ssVersions li { display: flex; min-height: 34px; align-items: center; gap: 10px; border-radius: var(--dsw-radius-md); padding: 3px 6px; transition: background-color 120ms ease; }
+.ssVersions li:hover { background: var(--ss-hover); }
+.ssVersions time { color: var(--ss-muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+.ssVersions li > span { flex: 1; }
+.ssTrashList li { flex-wrap: wrap; padding-block: 10px; }
+.ssTrashList li > span { flex: 0 0 auto; }
+.ssTrashList li > .ssRowText { flex: 1 1 220px; }
+.ssTrashTags { display: flex; flex-wrap: wrap; gap: 6px; }
+.ssTrashList li > .ssTrashActions { display: flex; flex: 0 0 auto; margin-left: auto; gap: 6px; }
+.ssResources { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.ssResources code { padding: 1px 8px; border-radius: 999px; color: var(--ss-muted); background: var(--ss-fill); font: 11px/17px var(--ss-code); }
+
+.ssEditor { width: 100%; min-height: 420px; resize: vertical; border: .5px solid var(--ss-field-line); border-radius: var(--dsw-radius-md); outline: 0; padding: 10px 12px; color: var(--ss-text); background: var(--ss-input); font: 12px/1.6 var(--ss-code); tab-size: 2; transition: border-color 120ms ease; }
+.ssEditor:focus { border-color: var(--ss-accent); }
+
+/* ---- dialogs -------------------------------------------------------------- */
+
+.ssForm { display: grid; gap: 14px; }
+.ssField { display: grid; gap: 6px; }
+.ssField > label { color: var(--ss-muted); font-size: 12px; font-weight: 500; line-height: 18px; }
+.ssForm input:not([type='checkbox']):not([type='radio']),
+.ssForm textarea { width: 100%; border: .5px solid var(--ss-field-line); border-radius: var(--dsw-radius-md); outline: 0; padding: 7px 10px; color: var(--ss-text); background: var(--ss-input); font: inherit; font-size: 13px; line-height: 20px; transition: border-color 120ms ease; }
+.ssForm input:not([type='checkbox']):not([type='radio']):focus,
+.ssForm textarea:focus { border-color: var(--ss-accent); }
+.ssForm textarea { resize: vertical; }
+.ssForm small { color: var(--ss-faint); font-size: 11px; line-height: 16px; }
+.ssFormError { margin-right: auto; color: var(--ss-danger); font-size: 12px; }
+
+/* ---- controls ------------------------------------------------------------- */
+
+.ssButton {
+  display: inline-flex;
+  min-height: 28px;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border: .5px solid transparent;
+  border-radius: var(--dsw-radius-md);
+  padding: 0 10px;
+  color: var(--ss-text);
+  background: transparent;
+  font: inherit;
+  font-size: 12px;
+  line-height: 18px;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background-color 120ms ease, border-color 120ms ease, color 120ms ease;
+}
+.ssButton:disabled { cursor: default; opacity: .45; }
+.ssButton[data-variant='primary'] { color: var(--dsw-alias-label-inverse, #fff); background: var(--ss-accent); }
+.ssButton[data-variant='primary']:hover:not(:disabled) { background: color-mix(in srgb, var(--ss-accent) 88%, #fff); }
+.ssButton[data-variant='outline'] { border-color: var(--ss-field-line); }
+.ssButton[data-variant='outline']:hover:not(:disabled) { background: var(--ss-hover); }
+.ssButton[data-variant='ghost'] { color: var(--ss-muted); }
+.ssButton[data-variant='ghost']:hover:not(:disabled) { color: var(--ss-text); background: var(--ss-hover); }
+.ssButton[data-variant='danger'] { color: var(--dsw-alias-label-inverse, #fff); background: var(--ss-danger); }
+
+/*
+ * The switch reads its colours from the theme directly, not from `--ss-*`:
+ * the same component renders inside the page (`.ssShell`) and on the plugin's
+ * detail page, which is outside that container. A token that only exists in
+ * one of the two places leaves the other one painted with the page background,
+ * which is exactly how "on" became invisible.
+ */
+.ssSwitch { position: relative; display: inline-flex; width: 30px; height: 18px; flex: none; }
+.ssSwitch input { position: absolute; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: pointer; }
+.ssSwitch span {
+  width: 100%;
+  height: 100%;
+  border-radius: 999px;
+  /* Off: a filled track, so the control is visible before it is touched. The
+     mid grey sits against both the light and the dark surface. */
+  background: color-mix(
+    in srgb,
+    var(--dsw-alias-label-tertiary, #8a8a8a) 45%,
+    var(--dsw-alias-bg-layer-1, transparent)
+  );
+  transition: background-color 160ms ease;
+  pointer-events: none;
+}
+.ssSwitch span::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 14px;
+  height: 14px;
+  border-radius: 999px;
+  background: #fff;
+  box-shadow: 0 1px 2px rgb(0 0 0 / 20%);
+  transition: transform 160ms cubic-bezier(.2, 0, 0, 1);
+}
+/* On: the product accent, at full strength against the surface it sits on. */
+.ssSwitch input:checked + span { background: var(--dsw-alias-state-business-primary, #3b7ddd); }
+.ssSwitch input:checked + span::after { transform: translateX(12px); }
+.ssSwitch input:focus-visible + span { outline: 2px solid var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary, #3b7ddd)); outline-offset: 2px; }
+.ssSwitch input:disabled ~ span { opacity: .45; }
+
+.ssTag {
+  display: inline-flex;
+  align-items: center;
+  border: .5px solid var(--ss-line);
+  border-radius: 999px;
+  padding: 0 7px;
+  color: var(--ss-muted);
+  font-size: 11px;
+  line-height: 16px;
+  white-space: nowrap;
+}
+.ssTag[data-tone='quiet'] { border-color: transparent; background: var(--ss-fill); color: var(--ss-faint); }
+.ssTag[data-tone='success'] { border-color: transparent; background: color-mix(in srgb, var(--ss-success) 12%, transparent); color: var(--ss-success); }
+
+/*
+ * The menu is portalled to the body, so it positions against the viewport and
+ * inherits none of the page's tokens: the palette below is spelled out here so
+ * a menu opened over any surface still reads correctly.
+ */
+.ssMenu {
+  /* Portalled to the body, so it declares the tokens it reads instead of
+     inheriting them from the page's `.ssShell`. */
+  --ss-layer-1: var(--dsw-alias-bg-layer-1);
+  --ss-text: var(--dsw-alias-label-primary);
+  --ss-muted: var(--dsw-alias-label-secondary);
+  --ss-hover: var(--dsw-alias-interactive-bg-hover);
+  --ss-danger: var(--dsw-alias-state-error-primary);
+  --ss-focus: var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary));
+  --ss-card-line: var(--dsw-alias-settings-card-stroke);
+
+  z-index: 1000;
+  display: grid;
+  gap: 1px;
+  border: .5px solid var(--ss-card-line);
+  border-radius: var(--dsw-radius-md);
+  padding: 4px;
+  background: var(--ss-layer-1);
+  color: var(--ss-text);
+  font: 13px/20px var(--dsw-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  box-shadow: 0 8px 24px rgb(0 0 0 / 18%);
+  animation: ss-menu-in 120ms cubic-bezier(.2, 0, 0, 1);
+}
+@keyframes ss-menu-in {
+  from { opacity: 0; transform: translateY(-2px); }
+  to { opacity: 1; transform: none; }
+}
+.ssMenu button {
+  border: 0;
+  border-radius: var(--dsw-radius-sm);
+  padding: 6px 8px;
+  color: var(--ss-text);
+  background: transparent;
+  font: inherit;
+  font-size: 12px;
+  line-height: 18px;
+  text-align: left;
+  cursor: pointer;
+}
+.ssMenu button:hover:not(:disabled),
+.ssMenu button:focus-visible { background: var(--ss-hover); }
+.ssMenu button:focus-visible { outline: 2px solid var(--ss-focus); outline-offset: -2px; }
+.ssMenu button:disabled { opacity: .45; cursor: default; }
+.ssMenu button {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ssMenu button[data-danger] { color: var(--ss-danger); }
+.ssMenuAnchor { position: relative; display: inline-flex; }
+
+/* ---- modal ---------------------------------------------------------------- */
+
+.ssModalMask {
+  position: fixed;
+  inset: 0;
+  z-index: 900;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgb(0 0 0 / 32%);
+  animation: ss-fade 140ms ease;
+}
+@keyframes ss-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+.ssModal {
+  display: flex;
+  width: min(720px, 100%);
+  max-height: min(80vh, 720px);
+  flex-direction: column;
+  gap: 12px;
+  border-radius: var(--dsw-radius-lg);
+  padding: 18px 20px;
+  color: var(--ss-text);
+  background: var(--ss-bg);
+  box-shadow: 0 24px 64px rgb(0 0 0 / 28%);
+  animation: ss-arrive 180ms cubic-bezier(.2, 0, 0, 1);
+}
+.ssModal[data-wide] { width: min(960px, 100%); }
+.ssModalHead { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.ssModalHead h3 { margin: 0; font-size: 15px; font-weight: 600; line-height: 24px; }
+.ssModalHead p { margin: 2px 0 0; color: var(--ss-muted); font-size: 12px; line-height: 18px; }
+.ssModalBody { min-height: 0; flex: 1; overflow-y: auto; }
+.ssModalFoot { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 8px; }
+
+/* ---- a line diff ---------------------------------------------------------- */
+
+.ssDiff { display: grid; grid-template-columns: minmax(0, 1fr); gap: 0; overflow: auto; border: .5px solid var(--ss-line); border-radius: var(--dsw-radius-md); font: 12px/1.6 var(--ss-code); }
+.ssDiff div { display: grid; grid-template-columns: 40px minmax(0, 1fr); gap: 8px; padding: 0 8px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.ssDiff div > b { color: var(--ss-faint); font-weight: 400; text-align: right; font-variant-numeric: tabular-nums; }
+.ssDiff div[data-kind='add'] { background: color-mix(in srgb, var(--ss-success) 12%, transparent); }
+.ssDiff div[data-kind='remove'] { background: color-mix(in srgb, var(--ss-danger) 12%, transparent); }
+
+/* ---- groups --------------------------------------------------------------- */
+
+/*
+ * A group reads as one movable block: its header is the handle, rules instead
+ * of boxes keep it quiet, and the whole row answers the pointer so it is
+ * clearly a target rather than a label.
+ */
+.ssListGroup { position: relative; border-radius: var(--dsw-radius-md); transition: background-color 140ms ease; }
+.ssListTools { display: flex; justify-content: flex-end; margin: 8px 12px 0; }
+.ssListTools .ssLink { font-size: 11px; }
+
+.ssGroupName {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ssDragGrip {
+  display: grid;
+  width: 12px;
+  height: 16px;
+  flex: none;
+  place-items: center;
+  border-radius: var(--dsw-radius-xs, 4px);
+  color: var(--ss-line-strong, var(--ss-faint));
+  opacity: .7;
+  cursor: grab;
+  transition: color 140ms ease, opacity 140ms ease, background-color 140ms ease;
+}
+.ssDragGrip:hover,
+.ssDragGrip:focus-visible { color: var(--ss-muted); opacity: 1; background: var(--ss-hover); }
+.ssDragGrip:focus-visible { outline: 2px solid var(--ss-focus); outline-offset: 1px; }
+.ssDragGrip:active { cursor: grabbing; }
+
+/* The dragged group fades where it came from; the target shows where it lands. */
+.ssListGroup[data-dragging] { opacity: .4; }
+.ssListGroup[data-drop]::before {
+  content: '';
+  position: absolute;
+  inset-inline: 6px;
+  top: -1px;
+  height: 2px;
+  border-radius: 999px;
+  background: var(--ss-accent);
+}
+.ssListGroup[data-drop] { background: color-mix(in srgb, var(--ss-accent) 7%, transparent); }
+
+.ssListTools { display: flex; justify-content: flex-end; margin: 8px 12px 0; }
+.ssListTools .ssLink { font-size: 11px; }
+
+.ssGroupName {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* Only a real group can be renamed; the hint follows the pointer so the
+   gesture is discoverable without changing the resting look. */
+.ssGroupHead { display: flex; flex: 1; min-width: 0; align-items: center; gap: 2px; }
+.ssGroupHead .ssGroupToggle { flex: 1; min-width: 0; }
+.ssGroupCount {
+  flex: none;
+  color: var(--ss-faint);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+.ssGroupSwitch { display: inline-flex; flex: none; align-items: center; gap: 4px; }
+.ssGroupSwitch .ssSwitch { width: 26px; height: 16px; }
+.ssGroupSwitch .ssSwitch span::after { width: 12px; height: 12px; }
+.ssGroupSwitch .ssSwitch input:checked + span::after { transform: translateX(10px); }
+/* Partly on: the same amber the warning state uses, so it reads as "not simply off". */
+.ssSwitch[data-mixed] span { background: var(--dsw-alias-state-warn-primary, #d9822b); }
+.ssSwitch[data-mixed] span::after { transform: translateX(6px); }
+
+/* ---- the composer's skill picker ------------------------------------------ */
+
+.ssPickerAnchor { display: inline-flex; }
+/* Sized to the plus control it sits beside, so the row keeps one rhythm. */
+.ssPickerButton {
+  display: grid;
+  width: 26px;
+  height: 26px;
+  place-items: center;
+  border: 0;
+  border-radius: var(--dsw-radius-sm);
+  padding: 0;
+  color: var(--dsw-alias-label-tertiary);
+  background: transparent;
+  cursor: pointer;
+  transition: color 120ms ease, background-color 120ms ease;
+}
+.ssPickerButton:hover,
+.ssPickerButton[aria-expanded='true'] { color: var(--dsw-alias-label-primary); background: var(--dsw-alias-interactive-bg-hover); }
+.ssPickerButton:focus-visible { outline: 2px solid var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary)); outline-offset: 1px; }
+
+.ssPicker {
+  /* Portalled: it declares the tokens it reads. */
+  --ss-text: var(--dsw-alias-label-primary);
+  --ss-muted: var(--dsw-alias-label-secondary);
+  --ss-faint: var(--dsw-alias-label-tertiary);
+  --ss-line: var(--dsw-alias-border-l2);
+  --ss-card-line: var(--dsw-alias-settings-card-stroke);
+  --ss-field-line: var(--dsw-alias-border-l4);
+  --ss-input: var(--dsw-alias-bg-layer-1);
+  --ss-layer-1: var(--dsw-alias-bg-layer-1);
+  --ss-hover: var(--dsw-alias-interactive-bg-hover);
+  --ss-accent: var(--dsw-alias-state-business-primary);
+  --ss-code: var(--ds-font-family-code, Consolas, monospace);
+  --ss-focus: var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary));
+
+  z-index: 1000;
+  display: flex;
+  overflow: hidden;
+  flex-direction: column;
+  max-height: min(420px, 60vh);
+  border: .5px solid var(--ss-card-line);
+  border-radius: var(--dsw-radius-lg);
+  background: var(--ss-layer-1);
+  color: var(--ss-text);
+  font: 13px/20px var(--dsw-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  box-shadow: 0 12px 32px rgb(0 0 0 / 20%);
+  animation: ss-menu-in 120ms cubic-bezier(.2, 0, 0, 1);
+}
+.ssPickerHead { flex: none; padding: 8px; border-bottom: .5px solid var(--ss-line); }
+.ssPickerHead .ssSearch { width: 100%; }
+.ssPickerList { min-height: 0; flex: 1; overflow-y: auto; margin: 0; padding: 4px; list-style: none; }
+.ssPickerItem {
+  display: grid;
+  width: 100%;
+  gap: 1px;
+  border: 0;
+  border-radius: var(--dsw-radius-md);
+  padding: 6px 8px;
+  color: var(--ss-text);
+  background: transparent;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.ssPickerItem:hover,
+.ssPickerItem:focus-visible { background: var(--ss-hover); outline: none; }
+.ssPickerItem strong { font-size: 13px; font-weight: 500; }
+.ssPickerItem small { overflow: hidden; color: var(--ss-faint); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+.ssPickerNote { padding: 14px 12px; text-align: center; }
+.ssPickerFoot { flex: none; padding: 6px 10px; border-top: .5px solid var(--ss-line); }
+.ssPickerFoot .ssLink { color: var(--ss-accent); }
+
+/* ---- a settings row on the plugin page ------------------------------------ */
+
+/*
+ * This row renders on the plugin's detail page, outside `.ssShell`, so it
+ * spells its colours out instead of inheriting tokens that only exist there.
+ */
+.ssSetting { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; padding: 12px 0; }
+.ssSettingText { min-width: 0; flex: 1; }
+.ssSettingText h4 { margin: 0; color: var(--dsw-alias-label-primary); font-size: 13px; font-weight: 600; line-height: 20px; }
+.ssSettingText p { margin: 2px 0 0; color: var(--dsw-alias-label-tertiary); font-size: 12px; line-height: 18px; }
+.ssSettingError { flex: 1 1 100%; margin: 0; color: var(--dsw-alias-state-error-primary); font-size: 12px; }
+
+/* ---- narrow widths -------------------------------------------------------- */
+
+@media (max-width: 860px) {
+  .ssSplit { grid-template-columns: minmax(0, 1fr); }
+  .ssList { max-height: 360px; overflow-y: auto; }
+  .ssSkillsSplit { height: auto; }
+  .ssSkillsSplit > .ssList { height: auto; }
+  .ssSkillsSplit > .ssPane { overflow: visible; overscroll-behavior-y: auto; }
+}
+
+@media (max-width: 560px) {
+  .ssDetailHead { flex-direction: column; }
+  .ssDetailActions { justify-content: flex-start; }
+  .ssTabs { padding: 0 16px; }
+  .ssBody { padding: 12px 16px 20px; }
+  .ssMasthead { padding: var(--ss-head-top, 46px) 16px 0; }
+}
+
+.ssWarn { margin: 0; padding: 8px 12px; border-radius: var(--dsw-radius-md); color: var(--ss-text); background: color-mix(in srgb, var(--ss-warn) 11%, transparent); font-size: 12px; line-height: 18px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .ssPage, .ssDetail, .ssEmpty, .ssBadge { animation: none; }
+  .ssUse, .ssChevron { transition: none; }
+  .ssSpinner { animation: none; }
+}
