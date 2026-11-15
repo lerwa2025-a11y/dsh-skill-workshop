@@ -221,21 +221,6 @@ html:not([data-platform]):not([data-windows-titlebar]) .ssShell { --ss-head-top:
 
 .ssWarn { margin: 0; padding: 8px 12px; border-radius: var(--dsw-radius-md); color: var(--ss-text); background: color-mix(in srgb, var(--ss-warn) 11%, transparent); font-size: 12px; line-height: 18px; }
 
-.ssBadge {
-  display: inline-block;
-  min-width: 16px;
-  margin-left: 6px;
-  padding: 0 5px;
-  border-radius: 999px;
-  color: var(--dsw-alias-label-inverse, #fff);
-  background: var(--ss-accent);
-  font-size: 11px;
-  font-weight: 500;
-  line-height: 16px;
-  text-align: center;
-  font-variant-numeric: tabular-nums;
-  animation: ss-pop 260ms cubic-bezier(.2, 0, 0, 1);
-}
 
 /* ---- quiet buttons -------------------------------------------------------- */
 
@@ -836,7 +821,31 @@ html:not([data-platform]):not([data-windows-titlebar]) .ssShell { --ss-head-top:
 .ssWarn { margin: 0; padding: 8px 12px; border-radius: var(--dsw-radius-md); color: var(--ss-text); background: color-mix(in srgb, var(--ss-warn) 11%, transparent); font-size: 12px; line-height: 18px; }
 
 @media (prefers-reduced-motion: reduce) {
-  .ssPage, .ssDetail, .ssEmpty, .ssBadge { animation: none; }
+  .ssPage, .ssDetail, .ssEmpty { animation: none; }
   .ssUse, .ssChevron { transition: none; }
   .ssSpinner { animation: none; }
 }
+
+/* ------------------------------------------------------------ plugin skills */
+
+/*
+ * The plugin tab reuses the skills tab's split verbatim, so both lists scroll
+ * the same way. Only the pane differs: it stacks the explanation above the
+ * detail instead of being one scroll container for the detail alone.
+ *
+ * The pane stays a single scroll container — `min-height: 0` lets it shrink
+ * inside the grid, and the overflow is already set by `.ssSkillsSplit`.
+ */
+.ssPaneStack { display: flex; flex-direction: column; gap: 12px; }
+.ssPaneStack > .ssPluginIntro,
+.ssPaneStack > .ssListNote { flex: none; margin: 0; }
+.ssPluginIntro { margin: 0; padding: 10px 12px; border-radius: var(--dsw-radius-md); color: var(--ss-muted); background: var(--ss-fill); font-size: 12px; line-height: 18px; }
+
+/* --------------------------------------------------------------- translate */
+
+/*
+ * The body and its translation share one column: the bar sits above the text
+ * and never moves it, so toggling between the two does not reflow the page.
+ */
+.ssBody2 { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.ssBodyNote { margin: 0; font-size: 12px; line-height: 18px; }

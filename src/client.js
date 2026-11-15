@@ -47,7 +47,43 @@ window.__ModuleLoader__.load({
       'setting.failed': '保存失败，请重试。',      'page.title': '技能管理',
       'page.description': '管理本机技能：开关可见性、改调用方式、编辑内容，删掉的进回收站。',
       'tab.skills': '技能',
+      'tab.plugin': '插件技能',
       'tab.trash': '回收站',
+      'plugin.title': '插件技能',
+      'plugin.body': '这些技能随已安装的插件一起发布，归插件所有，这里只读：不编辑、不删除、不进回收站。插件更新时它们会随之更新。',
+      'plugin.empty': '没有插件自带技能',
+      'plugin.emptyBody': '当前 profile 里已安装的插件都没有随包技能。',
+      'plugin.count': '{count} 个技能',
+      'plugin.version': 'v{version}',
+      'plugin.loaded': '已加载',
+      'plugin.loadedHint': '模型现在就能调用它。',
+      'plugin.scoped': '按模式加载',
+      'plugin.scopedHint': '插件注册了这个技能，但它只在对应模式（例如写作模式）下才生效，当前对话里看不到。',
+      'plugin.unregistered': '未注册',
+      'plugin.unregisteredHint': '插件包里带了这个文件，但插件没有把它注册给 DSH，模型实际看不到它。',
+      'plugin.readonly': '只读',
+      'plugin.search': '搜索插件技能',
+      'plugin.noMatch': '没有匹配的插件技能',
+      'plugin.package': '所属插件',
+      'plugin.path': '文件位置',
+      'plugin.bytes': '大小',
+      'plugin.updated': '更新于',
+      'plugin.invocation': '调用方式',
+      'plugin.status': '加载状态',
+      'plugin.noContent': '（这个文件没有正文）',
+      'plugin.catalogError': '技能注册表读不到（{reason}），下面的状态按磁盘推断。',
+      'translate.short': '翻简介',
+      'translate.run': '翻译',
+      'translate.working': '翻译中…',
+      'translate.show': '看译文',
+      'translate.hide': '看原文',
+      'translate.note': '译文由 DSH 的翻译服务生成，原文始终保留。',
+      'plugin.select': '选一个插件技能',
+      'plugin.selectBody': '左边按插件分组列出所有随包技能，点一条看它的内容和加载状态。',
+      'invocation.both': '模型 + 斜杠',
+      'invocation.slash': '仅斜杠命令',
+      'invocation.model': '仅模型',
+      'invocation.off': '已关闭',
       'common.loading': '读取中…',
       'common.save': '保存',
       'common.saving': '保存中…',
@@ -195,7 +231,43 @@ window.__ModuleLoader__.load({
       'setting.failed': 'Could not save; try again.',      'page.title': 'Skill studio',
       'page.description': 'Manage local skills: switch visibility, choose how each is invoked, edit the file, and restore what you removed.',
       'tab.skills': 'Skills',
+      'tab.plugin': 'Plugin skills',
       'tab.trash': 'Trash',
+      'plugin.title': 'Plugin skills',
+      'plugin.body': 'These ship inside the installed plugins and belong to them. This page only reads them: no editing, no deleting, no trash. A plugin update updates them.',
+      'plugin.empty': 'No plugin ships a skill',
+      'plugin.emptyBody': 'None of the plugins installed in this profile bundle a skill.',
+      'plugin.count': '{count} skills',
+      'plugin.version': 'v{version}',
+      'plugin.loaded': 'Loaded',
+      'plugin.loadedHint': 'The model can use it right now.',
+      'plugin.scoped': 'Mode-scoped',
+      'plugin.scopedHint': 'The plugin registers this skill, but only inside its own mode (writing mode, for example), so the current conversation does not see it.',
+      'plugin.unregistered': 'Not registered',
+      'plugin.unregisteredHint': 'The file ships in the package, but the plugin never registers it, so the model cannot see it.',
+      'plugin.readonly': 'Read-only',
+      'plugin.search': 'Search plugin skills',
+      'plugin.noMatch': 'No plugin skill matches',
+      'plugin.package': 'Plugin',
+      'plugin.path': 'File',
+      'plugin.bytes': 'Size',
+      'plugin.updated': 'Updated',
+      'plugin.invocation': 'Invocation',
+      'plugin.status': 'Status',
+      'plugin.noContent': '(this file has no body)',
+      'plugin.catalogError': 'The skill registry is unavailable ({reason}); the statuses below are inferred from disk.',
+      'translate.short': 'Summary',
+      'translate.run': 'Translate',
+      'translate.working': 'Translating…',
+      'translate.show': 'Show translation',
+      'translate.hide': 'Show original',
+      'translate.note': 'Translated by the DSH translation service; the original is always kept.',
+      'plugin.select': 'Pick a plugin skill',
+      'plugin.selectBody': 'The left column lists every bundled skill by plugin; open one to read its content and load status.',
+      'invocation.both': 'Model + slash',
+      'invocation.slash': 'Slash only',
+      'invocation.model': 'Model only',
+      'invocation.off': 'Off',
       'common.loading': 'Loading…',
       'common.save': 'Save',
       'common.saving': 'Saving…',
@@ -356,6 +428,9 @@ window.__ModuleLoader__.load({
     const api = {
       catalog: () => request('/catalog'),
       skill: (key) => request(`/skill?key=${encodeURIComponent(key)}`),
+      pluginSkills: () => request('/plugin-skills'),
+      pluginSkill: (key) => request(`/plugin-skills/skill?key=${encodeURIComponent(key)}`),
+      translate: (input) => request('/translate', { method: 'POST', body: JSON.stringify(input) }),
       trash: () => request('/trash'),
       version: (key, id) => request(`/version?key=${encodeURIComponent(key)}&id=${encodeURIComponent(id)}`),
       save: (input) => request('/skill/save', { method: 'POST', body: JSON.stringify(input) }),
@@ -406,6 +481,18 @@ window.__ModuleLoader__.load({
       if (seconds < 86400) return t('time.hours', { count: Math.floor(seconds / 3600) })
       if (seconds < 604800) return t('time.days', { count: Math.floor(seconds / 86400) })
       return new Date(time).toLocaleDateString()
+    }
+
+    /**
+     * The language a translation should arrive in.
+     *
+     * Read from the dictionary the page is already rendering rather than from a
+     * prop: `locale` on the slots names the dictionary namespace, not a language
+     * code. A reader on the Chinese page wants the English skill text in
+     * Chinese, so the page's own language IS the target.
+     */
+    function targetOf(t) {
+      return /[\u4e00-\u9fff]/u.test(t('translate.run')) ? 'zh' : 'en'
     }
 
     function invocationOf(invocation) {
@@ -798,6 +885,13 @@ window.__ModuleLoader__.load({
       const [tab, setTab] = useState('skills')
       const [catalog, setCatalog] = useState(null)
       const [trash, setTrash] = useState(null)
+      /*
+       * Plugin skills are read from their own endpoint, not folded into the
+       * catalog: they belong to the packages, they never enter a group, and a
+       * failure to read them must not blank the reader's own skills.
+       */
+      const [pluginSkills, setPluginSkills] = useState(null)
+      const [pluginError, setPluginError] = useState(null)
       const [selected, setSelected] = useState(undefined)
       const [query, setQuery] = useState('')
       /*
@@ -859,6 +953,25 @@ window.__ModuleLoader__.load({
         api.trash().then((value) => { if (active) setTrash(value.entries) }).catch((reason) => { if (active) fail(reason) })
         return () => { active = false }
       }, [revision, fail])
+
+      /*
+       * Plugin skills have their own failure state: a plugin whose package
+       * folder is unreadable must not read as "this page is broken", and the
+       * reader's own skills stay usable either way.
+       */
+      useEffect(() => {
+        let active = true
+        api.pluginSkills().then((value) => {
+          if (!active) return
+          setPluginSkills(value)
+          setPluginError(null)
+        }).catch((reason) => {
+          if (!active) return
+          setPluginSkills({ plugins: [], skills: [], catalogError: errorText(reason) })
+          setPluginError(errorText(reason))
+        })
+        return () => { active = false }
+      }, [revision])
 
       useEffect(() => {
         if (catalog === null) return
@@ -1045,14 +1158,14 @@ window.__ModuleLoader__.load({
       }), [t, revision, refresh, fail, done, useSkill, setGroupOn])
 
       const tabs = h('div', { className: 'ssTabs', role: 'tablist', 'aria-label': t('page.title') },
-        ['skills', 'trash'].map((value) => h('button', {
+        ['skills', 'plugin', 'trash'].map((value) => h('button', {
           key: value,
           type: 'button',
           role: 'tab',
           'aria-selected': tab === value,
           'data-active': tab === value ? '' : undefined,
           onClick: () => setTab(value),
-        }, t(`tab.${value}`), value === 'trash' && (trash ?? []).length > 0 ? h('b', { className: 'ssBadge' }, (trash ?? []).length) : null)))
+        }, t(`tab.${value}`))))
 
       const body = catalog === null
         ? error === null
@@ -1087,7 +1200,9 @@ window.__ModuleLoader__.load({
             },
             moveSkill,
           })
-          : h(TrashPage, { context, entries: trash })
+          : tab === 'plugin'
+            ? h(PluginSkillsPage, { context, data: pluginSkills, error: pluginError })
+            : h(TrashPage, { context, entries: trash })
 
       return h('div', { className: 'ssShell' },
         h('header', { className: 'ssHead' },
@@ -1369,6 +1484,260 @@ groupConfirm === null ? null : h(Confirm, {
     }
 
     /**
+     * The plugin skills tab.
+     *
+     * Everything here is read-only, so this page has no switch, no menu, no
+     * dialog and no write call. The grouping is the package that ships each
+     * skill — not the reader's own groups — because that is the only grouping
+     * that stays true across a plugin update.
+     */
+    function PluginSkillsPage(props) {
+      const t = props.context.t
+      const data = props.data
+      const [needle, setNeedle] = useState('')
+      const [selected, setSelected] = useState(undefined)
+      /*
+       * Groups start collapsed, the same way the reader's own groups do: the
+       * list is a table of contents first, and opening one is the deliberate
+       * act of reading it.
+       */
+      const [expanded, setExpanded] = useState(() => new Set())
+
+      if (data === null) return h(Spinner, { label: t('common.loading') })
+
+      const query = needle.trim().toLowerCase()
+      const matches = (skill) => query === ''
+        || skill.name.toLowerCase().includes(query)
+        || String(skill.description).toLowerCase().includes(query)
+      const skills = (data.skills ?? []).filter(matches)
+      const byKey = new Map(skills.map((skill) => [skill.key, skill]))
+      const groups = (data.plugins ?? [])
+        .map((group) => ({
+          ...group,
+          skills: (group.memberKeys ?? []).map((key) => byKey.get(key)).filter((skill) => skill !== undefined),
+        }))
+        .filter((group) => group.skills.length > 0)
+      const all = data.skills ?? []
+      const current = all.find((skill) => skill.key === selected)
+
+      /*
+       * Nothing to split when no package ships a skill: an empty split would
+       * still claim the tab's full height and show two blank columns.
+       */
+      if (all.length === 0) {
+        return h('div', { className: 'ssPane' },
+          h(Empty, { glyph: '⬡', title: t('plugin.empty') }, t('plugin.emptyBody')))
+      }
+
+      const list = h('aside', { className: 'ssList' },
+        h('header', { className: 'ssListBar' },
+          h('input', {
+            type: 'search',
+            value: needle,
+            placeholder: t('plugin.search'),
+            'aria-label': t('plugin.search'),
+            className: 'ssSearch',
+            onChange: (event) => setNeedle(event.target.value),
+          })),
+        query !== '' && skills.length === 0 ? h('p', { className: 'ssListNote' }, t('plugin.noMatch')) : null,
+        groups.map((group) => {
+          // A search always shows its matches; otherwise only what was opened.
+          const open = query !== '' || expanded.has(group.id)
+          return h('section', { key: group.id, className: 'ssListGroup' },
+            h('h5', null, h('div', { className: 'ssGroupHead' },
+              h('button', {
+                type: 'button',
+                className: 'ssGroupToggle',
+                'aria-expanded': open,
+                disabled: query !== '',
+                onClick: () => setExpanded((currentSet) => {
+                  const next = new Set(currentSet)
+                  if (next.has(group.id)) next.delete(group.id)
+                  else next.add(group.id)
+                  return next
+                }),
+              },
+              h('span', { 'aria-hidden': 'true' }, open ? '▾' : '▸'),
+              h('span', { className: 'ssGroupName' }, group.name),
+              group.version === undefined ? null : h('span', { className: 'ssGroupCount' }, t('plugin.version', { version: group.version })),
+              h('span', { className: 'ssGroupCount' }, group.skills.length)))),
+            open ? group.skills.map((skill) => h(PluginSkillRow, {
+              key: skill.key,
+              t,
+              skill,
+              selected: selected === skill.key,
+              onSelect: () => setSelected(skill.key),
+            })) : null)
+        }))
+
+      /*
+       * The same two-column split the skills tab uses, at the same height, so
+       * both lists scroll the same way. The explanation sits inside the pane
+       * above the detail: a wrapper around the split would take height from it
+       * and change how the list scrolls.
+       */
+      return h('div', { className: 'ssSplit ssSkillsSplit' }, list,
+        h('div', { className: 'ssPane ssPaneStack' },
+          h('p', { className: 'ssPluginIntro' }, t('plugin.body')),
+          data.catalogError === undefined ? null : h('p', { className: 'ssListNote' },
+            t('plugin.catalogError', { reason: data.catalogError })),
+          current === undefined
+            ? h(Empty, { glyph: '⬡', title: t('plugin.select') }, t('plugin.selectBody'))
+            : h(PluginSkillDetail, { key: current.key, context: props.context, skillKey: current.key })))
+    }
+
+    /** The one status badge a plugin skill can carry, and why it says that. */
+    function PluginStatus(props) {
+      const t = props.t
+      const status = props.status ?? 'unregistered'
+      const hint = t(`plugin.${status}Hint`)
+      return h('span', { className: 'ssTag', 'data-tone': status === 'loaded' ? 'accent' : 'quiet', title: hint },
+        t(`plugin.${status}`))
+    }
+
+    function PluginSkillRow(props) {
+      const t = props.t
+      const skill = props.skill
+      return h('button', {
+        type: 'button',
+        className: 'ssRow',
+        'data-active': props.selected ? '' : undefined,
+        'aria-current': props.selected ? 'true' : undefined,
+        onClick: props.onSelect,
+      },
+      h('span', { className: 'ssRowMain' },
+        h('span', { className: 'ssRowText' },
+          h('strong', null, h('span', null, skill.name), h(PluginStatus, { t, status: skill.status })),
+          skill.description === '' ? null : h('small', null, skill.description))))
+    }
+
+    function PluginSkillDetail(props) {
+      const t = props.context.t
+      const [detail, setDetail] = useState(null)
+      const [error, setError] = useState(null)
+      const translation = useTranslation(props.context, 'plugin', props.skillKey)
+      const summary = useTranslation(props.context, 'plugin', props.skillKey, 'description')
+
+      useEffect(() => {
+        let active = true
+        setDetail(null)
+        setError(null)
+        props.context.api.pluginSkill(props.skillKey).then((value) => {
+          if (active) setDetail(value)
+        }).catch((reason) => {
+          if (active) setError(errorText(reason))
+        })
+        return () => { active = false }
+      }, [props.skillKey, props.context.api])
+
+      if (error !== null) {
+        return h('article', { className: 'ssDetail' },
+          h(Empty, { glyph: '!', title: t('loadFailed') }, error))
+      }
+      if (detail === null) return h(Spinner, { label: t('common.loading') })
+
+      return h('article', { className: 'ssDetail' },
+        h('header', { className: 'ssDetailHead' },
+          h('div', null,
+            h('h3', null, detail.name),
+            detail.description === '' ? null : h('p', null, summary.shown && summary.translated !== null ? summary.translated : detail.description),
+            h('span', { className: 'ssMeta' },
+              h('span', null, h(PluginStatus, { t, status: detail.status })),
+              h('code', null, detail.package),
+              h('code', { title: detail.path }, detail.path),
+              h('span', null, relative(t, detail.updatedAt)),
+              h('span', null, size(detail.bytes)))),
+          h('div', { className: 'ssDetailActions' },
+            detail.description === '' ? null : h(Button, { variant: 'ghost', disabled: summary.busy, onClick: summary.run }, summary.label),
+            h(Button, { variant: 'outline', disabled: translation.busy, onClick: translation.run }, translation.label),
+            h(Tag, { tone: 'quiet' }, t('plugin.readonly')))),
+        h('div', { className: 'ssInvocation' },
+          h('span', { className: 'ssInvocationLabel' }, t('plugin.invocation')),
+          h('span', null, t(`invocation.${invocationOf(detail.invocation)}`)),
+          h('span', { className: 'ssInvocationHint' }, t(`plugin.${detail.status ?? 'unregistered'}Hint`))),
+        (detail.resources ?? []).length === 0 ? null : h('div', { className: 'ssFolds' },
+          h(Fold, { title: t('detail.resources'), meta: String(detail.resources.length) },
+            h('ul', { className: 'ssResources' }, detail.resources.map((item) => h('li', { key: item.path },
+              h('code', null, item.path), h('span', null, size(item.bytes))))))),
+        h(SkillBody, { context: props.context, content: detail.content, translation }))
+    }
+
+    /**
+     * A skill body with an optional translation.
+     *
+     * The original stays on screen and stays the default: translation is a
+     * reading aid, never a replacement, so a failure only costs the aid. Both
+     * detail pages use this one component, which keeps the two tabs behaving
+     * the same way.
+     */
+    /**
+     * The translation state of one open skill.
+     *
+     * It lives beside the detail page rather than inside the body so the
+     * control can sit in the header with the other actions, where the reader
+     * looks for it; the body only renders whichever text is current.
+     */
+    function useTranslation(context, kind, skillKey, field = 'body') {
+      const t = context.t
+      const [translated, setTranslated] = useState(null)
+      const [shown, setShown] = useState(false)
+      const [busy, setBusy] = useState(false)
+      // A different skill must not inherit the previous one's translation.
+      const [owner, setOwner] = useState(skillKey)
+      if (owner !== skillKey) {
+        setOwner(skillKey)
+        setTranslated(null)
+        setShown(false)
+      }
+
+      const run = async () => {
+        if (translated !== null) {
+          setShown((value) => !value)
+          return
+        }
+        setBusy(true)
+        try {
+          const answer = await context.api.translate({ kind, key: skillKey, field, target: targetOf(t) })
+          setTranslated(answer.text)
+          setShown(true)
+        } catch (error) {
+          // A refused translation is not a page error: the text is still there.
+          context.fail(error)
+        } finally {
+          setBusy(false)
+        }
+      }
+
+      const key = field === 'description' ? 'translate.short' : 'translate.run'
+      return {
+        translated,
+        shown,
+        busy,
+        run,
+        // Only the short field can hide its label: the header row has no space
+        // for a sentence, and the state is visible from the text itself.
+        label: busy
+          ? t('translate.working')
+          : translated === null
+            ? t(key)
+            : shown
+              ? t('translate.hide')
+              : t('translate.show'),
+      }
+    }
+
+    /** The body, showing the translation only while the reader asked for it. */
+    function SkillBody(props) {
+      const t = props.context.t
+      const source = props.content.replace(/^---[\s\S]*?\n---\n?/u, '')
+      if (source.trim() === '') return h('p', { className: 'ssMuted' }, t('plugin.noContent'))
+      const showing = props.translation !== undefined && props.translation.shown && props.translation.translated !== null
+      return h('div', { className: 'ssBody2' },
+        h('div', { className: 'ssDoc' }, markdown(showing ? props.translation.translated : source)),
+        showing ? h('p', { className: 'ssMuted ssBodyNote' }, t('translate.note')) : null)
+    }
+
+    /**
      * One group's switch.
      *
      * A group is on only when every member is on; a partly-off group reads as
@@ -1498,6 +1867,8 @@ groupConfirm === null ? null : h(Confirm, {
 
     function SkillDetail(props) {
       const t = props.context.t
+      const translation = useTranslation(props.context, 'own', props.skillKey)
+      const summary = useTranslation(props.context, 'own', props.skillKey, 'description')
       const [skill, setSkill] = useState(null)
       const hintId = React.useId()
       // `api` and `fail` are stable; the revision only says when to re-read.
@@ -1542,13 +1913,15 @@ groupConfirm === null ? null : h(Confirm, {
         h('header', { className: 'ssDetailHead' },
           h('div', null,
             h('h3', null, skill.name),
-            h('p', null, skill.description),
+            skill.description === '' ? null : h('p', null, summary.shown && summary.translated !== null ? summary.translated : skill.description),
             h('span', { className: 'ssMeta' },
               h('span', null, rootLabel(t, skill.root)),
               h('code', { title: skill.path }, skill.path),
               h('span', null, relative(t, skill.updatedAt)))),
           h('div', { className: 'ssDetailActions' },
             usable ? h(Button, { variant: 'outline', onClick: () => props.context.useSkill(skill.name) }, t('skills.use')) : null,
+            skill.description === '' ? null : h(Button, { variant: 'ghost', disabled: summary.busy, onClick: summary.run }, summary.label),
+            h(Button, { variant: 'outline', disabled: translation.busy, onClick: translation.run }, translation.label),
             h(Button, { variant: 'outline', disabled: busy || shadowed, onClick: () => setEditing(skill.content) }, t('common.edit')),
             h(MoreMenu, {
               label: t('common.more'),
@@ -1572,7 +1945,7 @@ groupConfirm === null ? null : h(Confirm, {
           // reader never has to infer it from two flag words.
           h('span', { id: hintId, className: 'ssInvocationHint' }, t(`invocation.${invocation}Hint`, { name: skill.name }))),
         skill.whenToUse === undefined ? null : h('p', { className: 'ssWhen' }, skill.whenToUse),
-        h('div', { className: 'ssDoc' }, markdown(skill.content.replace(/^---[\s\S]*?\n---\n?/u, ''))),
+        h(SkillBody, { context: props.context, content: skill.content, translation }),
         h('div', { className: 'ssFolds' },
           h(Fold, { title: t('versions.title'), meta: String(skill.versions.length) },
             skill.versions.length === 0
@@ -1960,14 +2333,35 @@ groupConfirm === null ? null : h(Confirm, {
       const ref = useRef(null)
       const t = props.t
 
-      // The catalog is read on first open, not on mount: a composer is mounted
-      // for every session and most of them never open the picker.
+      /*
+       * The list is every skill the composer can actually take, which is not
+       * only what lives under the local skill roots.
+       *
+       * DSH resolves `/name` against its own registry, and that registry also
+       * carries skills bundled inside installed plugins — those never appear in
+       * this plugin's own catalog scan, because that scan reads directories and
+       * plugin skills live in node_modules. Reading both keeps the button and
+       * the slash gesture offering the same set: a skill you can type must be a
+       * skill you can click.
+       *
+       * Only `loaded` plugin skills are offered. A `scoped` one loads solely
+       * inside its plugin's own mode, and an `unregistered` one never loads at
+       * all, so listing either would write a token DSH then refuses.
+       */
       useEffect(() => {
         if (!open || catalog !== null) return undefined
         let active = true
-        api.catalog()
-          .then((value) => { if (active) setCatalog(value.skills.filter((skill) => skill.invocation.userInvocable && skill.shadowedBy === undefined)) })
-          .catch(() => { if (active) setCatalog([]) })
+        Promise.all([
+          api.catalog().then((value) => value.skills.filter((skill) => skill.invocation.userInvocable && skill.shadowedBy === undefined)),
+          // A profile without the plugin tab's endpoint still gets the local list.
+          api.pluginSkills()
+            .then((value) => (value.skills ?? [])
+              .filter((skill) => skill.status === 'loaded' && skill.invocation.userInvocable)
+              .map((skill) => ({ ...skill, root: 'plugin', plugin: skill.package })))
+            .catch(() => []),
+        ]).then(([own, bundled]) => {
+          if (active) setCatalog([...own, ...bundled])
+        }).catch(() => { if (active) setCatalog([]) })
         return () => { active = false }
       }, [open, catalog])
 

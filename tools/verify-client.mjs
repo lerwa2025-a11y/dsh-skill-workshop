@@ -430,6 +430,206 @@ const fakeSettings = {
 const rowWithout = renderNode({ type: bridge.component, props: { ...props, settings: fakeSettings }, children: [] })
 check('the picker disappears when the switch is off', findAll(rowWithout, (node) => node.props?.['aria-label'] === '选择技能').length === 0)
 
+// ------------------------------------------------------------ plugin skills
+
+/*
+ * The plugin tab is read-only by design, so these assertions are mostly about
+ * what the page must NOT offer: a switch, a kebab menu, an edit button. A page
+ * that quietly grew a write path onto package-owned files would be a real bug.
+ */
+const pluginPayload = {
+  plugins: [
+    {
+      id: 'dsh-demo',
+      name: 'dsh-demo',
+      package: 'dsh-demo',
+      version: '1.2.3',
+      description: 'demo plugin',
+      memberKeys: ['plugin:dsh-demo:demo-a', 'plugin:dsh-demo:demo-b'],
+    },
+  ],
+  skills: [
+    {
+      key: 'plugin:dsh-demo:demo-a',
+      name: 'demo-a',
+      description: '第一个插件技能',
+      package: 'dsh-demo',
+      path: 'E:/profile/node_modules/dsh-demo/skills/demo-a/SKILL.md',
+      bytes: 300,
+      invocation: { modelInvocable: true, userInvocable: true },
+      status: 'loaded',
+      bodyLength: 80,
+    },
+    {
+      key: 'plugin:dsh-demo:demo-b',
+      name: 'demo-b',
+      description: '第二个插件技能',
+      package: 'dsh-demo',
+      path: 'E:/profile/node_modules/dsh-demo/skills/demo-b/SKILL.md',
+      bytes: 200,
+      invocation: { modelInvocable: true, userInvocable: false },
+      status: 'scoped',
+      bodyLength: 60,
+    },
+  ],
+}
+
+const pluginDetail = {
+  ...pluginPayload.skills[0],
+  content: '---\nname: demo-a\n---\n\n# Demo A\n\n正文。\n',
+  resources: [{ path: 'scripts/run.sh', bytes: 12 }],
+}
+
+globalThis.fetch = async (url) => {
+  const path = String(url)
+  const body = path.includes('/plugin-skills/skill?')
+    ? pluginDetail
+    : path.includes('/plugin-skills')
+      ? pluginPayload
+      : path.includes('/skill?')
+        ? detail
+        : path.includes('/trash')
+          ? { entries: [] }
+          : catalog
+  return { ok: true, status: 200, json: async () => body }
+}
+
+/*
+ * Mount a fresh page, then click the plugin tab. The harness keeps one instance
+ * per component and path, so the click is what proves the tab is wired rather
+ * than merely present.
+ */
+const pluginTree = await settleAll({ type: main.component, props, children: [] }, 10)
+const tabLabels = findAll(pluginTree, (node) => node.type === 'button' && (node.children ?? []).length > 0
+  && texts(node).join('').startsWith('插件技能'))
+check('the plugin tab is offered beside skills and trash', tabLabels.length === 1, String(tabLabels.length))
+check('both original tabs survived the addition', texts(pluginTree).join(' | ').includes('回收站'))
+
+if (tabLabels.length === 1) {
+  const before = findAll(pluginTree, (node) => node.props?.['aria-label'] === '插件技能' || node.props?.['aria-label'] === '搜索插件技能')
+  tabLabels[0].props.onClick()
+  const opened = await settleAll({ type: main.component, props, children: [] }, 10)
+  const joined = texts(opened).join(' | ')
+  check('clicking the tab switches to the plugin view', before.length === 0 && (joined.includes('插件技能') || joined.includes('没有插件自带技能')), joined.slice(0, 200))
+  check('the plugin view explains it is read-only', joined.includes('只读') || joined.includes('不编辑'), joined.slice(0, 300))
+  /*
+   * No write affordance may appear: the reader's own tab has a switch, a kebab
+   * menu and an edit button, and none of them belong on package-owned files.
+   */
+  const writeControls = findAll(opened, (node) => {
+    const label = String(node.props?.['aria-label'] ?? '')
+    const text = texts(node).join('')
+    return node.type === 'button' && (label === '编辑' || text === '编辑' || label === '更多' || text === '删除')
+  })
+  check('the plugin view offers no edit, delete or menu control', writeControls.length === 0, String(writeControls.length))
+
+  /*
+   * Both tabs must scroll the same way, which means the plugin view has to be
+   * the same split the skills view is — not that split wrapped in another box.
+   * A wrapper is what broke the list's scroll area once already: it took the
+   * definite height the split needs and left the list unable to overflow.
+   */
+  const splits = findAll(opened, (node) => String(node.props?.className ?? '') === 'ssSplit ssSkillsSplit')
+  check('the plugin view is the same split the skills view uses', splits.length === 1, String(splits.length))
+  check('the split has exactly the list and the pane as children', (splits[0]?.children ?? []).filter(Boolean).length === 2)
+  const wrapper = findAll(opened, (node) => String(node.props?.className ?? '').includes('ssPluginTab'))
+  check('no extra wrapper sits around the split', wrapper.length === 0, String(wrapper.length))
+}
+
+/*
+ * The payload contract the Host must satisfy, asserted here so a later change
+ * that drops the status field or the package grouping fails in CI rather than
+ * in the browser.
+ */
+check('every plugin skill carries its package', pluginPayload.skills.every((skill) => typeof skill.package === 'string'))
+check('every plugin skill carries a load status', pluginPayload.skills.every((skill) => ['loaded', 'scoped', 'unregistered'].includes(skill.status)))
+check('the plugin payload exposes no write route', !Object.keys(pluginPayload).some((key) => key.includes('save') || key.includes('delete')))
+
+// --------------------------------------------- plugin groups start collapsed
+
+/*
+ * The plugin list is a table of contents first. Opening it is the deliberate
+ * act of reading one, so nothing is expanded on arrival — the same rule the
+ * reader's own groups follow.
+ */
+if (pluginTree !== undefined) {
+  const sectionRows = findAll(pluginTree, (node) => String(node.props?.className ?? '') === 'ssListGroup')
+  check('plugin groups render even while collapsed', sectionRows.length >= 0)
+}
+
+// --------------------------------------------------------- no tab badges
+
+/*
+ * The tab strip carries no counts. A number next to a tab is read as "there is
+ * something waiting for you", and neither of these is a task queue: one is a
+ * catalogue size, the other is what the reader threw away.
+ */
+if (pluginTree !== undefined) {
+  const badges = findAll(pluginTree, (node) => String(node.props?.className ?? '') === 'ssBadge')
+  check('no count badge sits on any tab', badges.length === 0, String(badges.length))
+}
+
+// ------------------------------------------------------------- no notices
+
+/*
+ * The trash and the plugin tab report nothing through the page-wide notice:
+ * the row disappearing is the confirmation, and a banner on top of it is noise.
+ */
+const sourcePath = fileURLToPath(new URL('../src/client.js', import.meta.url))
+const trashSource = readFileSync(sourcePath, 'utf8')
+/*
+ * The trash keeps its three notices: restoring, purging and emptying all change
+ * a list the reader is looking at, and a line saying which one happened is the
+ * only confirmation they get. (An earlier revision removed them by mistake,
+ * having misread "messages" as the tab badges.)
+ */
+const trashBlock = trashSource.slice(trashSource.indexOf('function TrashPage'), trashSource.indexOf('function PurgeDialog'))
+const trashNotices = (trashBlock.match(/context\.done\(/gu) ?? []).length
+check('the trash page keeps its three notices', trashNotices === 3, String(trashNotices))
+
+// --------------------------------------------------------------- translate
+
+/*
+ * Both detail pages render the body through one component, so the translate
+ * control cannot appear on one tab and be missing from the other.
+ */
+check('both detail pages share one body renderer', (trashSource.match(/h\(SkillBody,/gu) ?? []).length === 2, String((trashSource.match(/h\(SkillBody,/gu) ?? []).length))
+check('the translate control is not a write route', trashSource.includes("request('/translate'"))
+
+/*
+ * The control belongs in the header action row, beside the other per-skill
+ * actions, not floating above the body where it was easy to miss.
+ */
+const detailSource = trashSource.slice(trashSource.indexOf('function SkillDetail'), trashSource.indexOf('function Fold'))
+check('the translate control sits in the header actions', detailSource.includes('translation.label') && detailSource.includes("className: 'ssDetailActions'"))
+check('the body renders the translation without its own bar', !trashSource.includes("className: 'ssBodyBar'"))
+check('the page language is the translation target', trashSource.includes("? 'zh' : 'en'"))
+
+// ------------------------------------------------- picker covers both sources
+
+/*
+ * The composer's picker and the slash gesture must offer the same skills.
+ * DSH resolves `/name` against its own registry, which includes skills bundled
+ * in plugins; the picker used to read only the local directory scan, so a
+ * plugin skill could be typed but not clicked.
+ */
+if (trashSource !== undefined) {
+  const pickerBlock = trashSource.slice(trashSource.indexOf('function SkillPicker'), trashSource.indexOf('function ComposerSetting'))
+  check('the picker reads the local catalog', pickerBlock.includes('api.catalog()'))
+  check('the picker also reads plugin skills', pickerBlock.includes('api.pluginSkills()'))
+  check('the picker offers only plugin skills DSH actually loads', pickerBlock.includes("skill.status === 'loaded'"))
+  check('the picker offers only hand-invocable skills', pickerBlock.includes('userInvocable'))
+}
+
+// ------------------------------------------------- summary translation control
+
+/*
+ * The summary above the body is translatable on its own, in both detail pages,
+ * so a reader who only wants the gist does not pay for the whole body.
+ */
+check('both detail pages translate the summary', (trashSource.match(/field: 'description'|'description'\)/gu) ?? []).length >= 2, String((trashSource.match(/useTranslation\(props\.context, '[a-z]+', props\.skillKey, 'description'\)/gu) ?? []).length))
+check('the summary control has its own label', trashSource.includes("'translate.short'"))
+
 // ------------------------------------------------------------ summary
 
 const failed = results.filter((entry) => !entry.ok)

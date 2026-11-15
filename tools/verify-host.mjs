@@ -348,6 +348,205 @@ writeFileSync(join(home, 'dsh-skill-workshop', 'groups.json'), '{ this is not js
 const brokenFile = await call('/skill-workshop/groups')
 check('a broken groups file degrades to empty', brokenFile.status === 200 && Array.isArray(brokenFile.body.groups) && brokenFile.body.groups.length === 0)
 
+// ------------------------------------------------------------ plugin skills
+
+/*
+ * A real profile shape under the throwaway home: a package.json naming the
+ * installed plugins, and package folders that ship skills in the layouts
+ * packages actually use. Nothing here is invented for the test — the point is
+ * that the scan reads a profile the way the running app lays one out.
+ */
+const profileDir = join(home, 'profiles', 'desktop')
+const modules = join(profileDir, 'node_modules')
+/*
+ * The app exports DSH_PROFILE_DIR, and this process inherits it when the suite
+ * runs inside DSH. Pin it to the fixture, or the scan reads the real profile.
+ */
+process.env.DSH_PROFILE_DIR = profileDir
+mkdirSync(join(modules, 'demo-bundle', 'skills', 'demo-one'), { recursive: true })
+mkdirSync(join(modules, 'demo-bundle', 'skills', 'demo-two'), { recursive: true })
+mkdirSync(join(modules, 'demo-flat', 'skill'), { recursive: true })
+mkdirSync(join(modules, 'demo-noreg', 'skills', 'orphan'), { recursive: true })
+writeFileSync(join(profileDir, 'package.json'), JSON.stringify({
+  name: 'dsh-profile-desktop',
+  dependencies: { 'demo-bundle': '1.0.0', 'demo-flat': '2.0.0', 'demo-noreg': '3.0.0' },
+  dsh: { profile: { bundles: ['demo-bundle', 'demo-flat', 'demo-noreg'] } },
+}, null, 2), 'utf8')
+
+/** Write one package: manifest, a source file with or without a provider, and skills. */
+function writePackage(name, version, { provider = false, description = '' } = {}) {
+  const dir = join(modules, name)
+  writeFileSync(join(dir, 'package.json'), JSON.stringify({ name, version, description }, null, 2), 'utf8')
+  writeFileSync(join(dir, 'index.js'), provider ? 'ctx.skills.registerProvider(() => p)\n' : 'export const x = 1\n', 'utf8')
+}
+writePackage('demo-bundle', '1.0.0', { provider: true, description: '演示插件' })
+writePackage('demo-flat', '2.0.0', { provider: true })
+writePackage('demo-noreg', '3.0.0', { provider: false })
+
+writeFileSync(join(modules, 'demo-bundle', 'skills', 'demo-one', 'SKILL.md'),
+  '---\nname: demo-one\ndescription: 第一个插件技能\n---\n\n# Demo one\n', 'utf8')
+writeFileSync(join(modules, 'demo-bundle', 'skills', 'demo-two', 'SKILL.md'),
+  '---\nname: demo-two\ndescription: 第二个插件技能\n---\n\n# Demo two\n', 'utf8')
+writeFileSync(join(modules, 'demo-flat', 'skill', 'SKILL.md'),
+  '---\nname: demo-flat-skill\ndescription: 扁平布局\n---\n\n# Flat\n', 'utf8')
+writeFileSync(join(modules, 'demo-noreg', 'skills', 'orphan', 'SKILL.md'),
+  '---\nname: orphan-skill\ndescription: 没有注册的技能\n---\n\n# Orphan\n', 'utf8')
+
+/*
+ * Remount with a stubbed registry: one name is listed, so everything else must
+ * read as scoped or unregistered — the distinction this tab exists to make.
+ */
+routes.clear()
+const listed = [{ name: 'demo-one' }]
+const registry = { list: () => Promise.resolve(listed) }
+const skillCtx = {
+  get: (name) => (name === 'skills' ? registry : undefined),
+  inject: (_services, run) => run({
+    effect: (factory) => factory(),
+    webServer: {
+      register: (route) => {
+        routes.set(route.path, route.handler)
+        return () => {}
+      },
+    },
+  }),
+}
+const fresh = await import(`../index.js?plugin-skills=${Date.now()}`)
+fresh.apply(skillCtx, {})
+
+const pluginAnswer = await call('/skill-workshop/plugin-skills')
+check('plugin skills route answers', pluginAnswer.status === 200, JSON.stringify(pluginAnswer.body).slice(0, 200))
+
+const pluginSkills = pluginAnswer.body?.skills ?? []
+check('plugin scan finds every bundled skill', pluginSkills.length === 4, String(pluginSkills.length))
+check('plugin scan keeps both package layouts',
+  pluginSkills.some((skill) => skill.name === 'demo-one') && pluginSkills.some((skill) => skill.name === 'demo-flat-skill'))
+check('plugin scan groups by package', new Set(pluginSkills.map((skill) => skill.package)).size === 3)
+check('plugin groups carry the manifest version', pluginAnswer.body?.plugins.find((group) => group.id === 'demo-bundle')?.version === '1.0.0')
+
+/*
+ * Status is the whole point of the tab: a skill in the live catalog is loaded,
+ * one whose package registers a provider but is not in this catalog is
+ * mode-scoped, and one whose package never registers is unregistered.
+ */
+const byName = new Map(pluginSkills.map((skill) => [skill.name, skill]))
+check('a listed skill reads as loaded', byName.get('demo-one')?.status === 'loaded', byName.get('demo-one')?.status)
+check('an unlisted skill of a registering package reads as scoped', byName.get('demo-two')?.status === 'scoped', byName.get('demo-two')?.status)
+check('a skill whose package never registers reads as unregistered', byName.get('orphan-skill')?.status === 'unregistered', byName.get('orphan-skill')?.status)
+
+/*
+ * The page reads one file through a route that re-derives its path from a
+ * fresh scan, so a crafted key cannot address a file outside the profile.
+ */
+const oneDetail = await call('/skill-workshop/plugin-skills/skill', { query: { key: byName.get('demo-two')?.key } })
+check('one plugin skill carries its body', String(oneDetail.body?.content ?? '').includes('# Demo two'))
+check('one plugin skill carries its package', oneDetail.body?.package === 'demo-bundle')
+
+const escape = await call('/skill-workshop/plugin-skills/skill', { query: { key: 'plugin:demo-bundle:../../../../etc/passwd' } })
+check('a crafted key is refused', escape.status === 400, String(escape.status))
+
+/*
+ * A read-only tab must have no write route at all: these are the paths the
+ * reader's own tab uses, and none may exist for plugin skills.
+ */
+for (const path of ['/skill-workshop/plugin-skills/save', '/skill-workshop/plugin-skills/delete', '/skill-workshop/plugin-skills/invocation']) {
+  check(`no write route at ${path}`, !routes.has(path))
+}
+
+// ---------------------------------------------------------------- translate
+
+/*
+ * Translation is delegated to DSH's own translator service, so the test stubs
+ * that service rather than the network: what this plugin must get right is
+ * which text it sends and what it does when the service is missing or refuses.
+ */
+const calls = []
+const translator = {
+  maxTextChars: 4000,
+  resolve: (request) => ({ ...request, sourceLanguage: 'auto' }),
+  translate: async (spec) => {
+    calls.push(spec)
+    if (spec.text.includes('FAIL')) throw new Error('TRANSLATION_REQUEST_FAILED')
+    return `[${spec.targetLanguage}] ${spec.text.slice(0, 20)}`
+  },
+}
+routes.clear()
+/*
+ * `translator` arrives through the injection list, not through ctx.get: Cordis
+ * only resolves a service a plugin declares, so the stub must provide it the
+ * same way the real loader does.
+ */
+const translateCtx = {
+  inject: (services, run) => run({
+    ...(services.includes('translator') ? { translator } : {}),
+    effect: (factory) => factory(),
+    webServer: { register: (route) => { routes.set(route.path, route.handler); return () => {} } },
+  }),
+}
+const translateMod = await import(`../index.js?translate=${Date.now()}`)
+translateMod.apply(translateCtx, {})
+
+const own = await call('/skill-workshop/translate', { method: 'POST', body: { kind: 'own', key: 'user-dsh:file:flat', target: 'en' } })
+check('translate answers for an own skill', own.status === 200, JSON.stringify(own.body).slice(0, 160))
+check('translate returns the translated text', String(own.body?.text ?? '').startsWith('[en]'), own.body?.text)
+/*
+ * The frontmatter is machine-read: translating it would produce a document no
+ * tool could parse if the reader copied it back, so only the body is sent.
+ */
+check('translate sends the body without the frontmatter', !String(calls[0]?.text ?? '').includes('name:'), String(calls[0]?.text ?? '').slice(0, 80))
+
+const pluginOne = await call('/skill-workshop/translate', { method: 'POST', body: { kind: 'plugin', key: byName.get('demo-one')?.key, target: 'zh' } })
+check('translate answers for a plugin skill', pluginOne.status === 200, JSON.stringify(pluginOne.body).slice(0, 160))
+
+/*
+ * A real skill body is routinely longer than one provider request — the bundled
+ * Blender skill is over fifty thousand characters — so the route must split it
+ * rather than refuse. A single call would fail most skills in practice.
+ */
+calls.length = 0
+const longText = `${'段落。'.repeat(1500)}\n\n${'第二段。'.repeat(1500)}`
+writeFileSync(join(skillsRoot, 'long.md'), `---\nname: long\ndescription: 长正文\n---\n\n${longText}\n`, 'utf8')
+const longAnswer = await call('/skill-workshop/translate', { method: 'POST', body: { kind: 'own', key: 'user-dsh:file:long', target: 'en' } })
+check('a body over the provider limit is split, not refused', longAnswer.status === 200, JSON.stringify(longAnswer.body).slice(0, 160))
+check('the split sent more than one request', calls.length > 1, String(calls.length))
+check('every piece stayed within the provider limit', calls.every((spec) => spec.text.length <= 4000), calls.map((spec) => spec.text.length).join(','))
+check('the pieces were rejoined in order', String(longAnswer.body?.text ?? '').startsWith('[en]'), String(longAnswer.body?.text ?? '').slice(0, 40))
+
+/*
+ * The description is translated on its own: it is the one-line summary above
+ * the body, short enough for a single request, and a reader may want it without
+ * translating the whole instruction.
+ */
+calls.length = 0
+const descAnswer = await call('/skill-workshop/translate', { method: 'POST', body: { kind: 'own', key: 'user-dsh:file:flat', target: 'en', field: 'description' } })
+check('the description can be translated on its own', descAnswer.status === 200 && descAnswer.body?.field === 'description', JSON.stringify(descAnswer.body).slice(0, 160))
+check('the description request carries only the summary', calls.length === 1 && !String(calls[0]?.text ?? '').includes('# '), String(calls[0]?.text ?? '').slice(0, 60))
+
+const bodyAnswer = await call('/skill-workshop/translate', { method: 'POST', body: { kind: 'own', key: 'user-dsh:file:flat', target: 'en' } })
+check('the body remains the default field', bodyAnswer.status === 200 && bodyAnswer.body?.field === 'body', JSON.stringify(bodyAnswer.body).slice(0, 120))
+
+const badTarget = await call('/skill-workshop/translate', { method: 'POST', body: { kind: 'own', key: 'user-dsh:file:flat', target: '../../etc' } })
+check('a malformed target language is refused', badTarget.status === 400, String(badTarget.status))
+
+const unknownKey = await call('/skill-workshop/translate', { method: 'POST', body: { kind: 'own', key: 'no-such-skill', target: 'en' } })
+check('an unknown skill is refused', unknownKey.status === 400, String(unknownKey.status))
+
+/*
+ * Without the service the page must say so rather than break: the body still
+ * renders, only the aid is unavailable.
+ */
+routes.clear()
+const noTranslator = {
+  inject: (_services, run) => run({
+    effect: (factory) => factory(),
+    webServer: { register: (route) => { routes.set(route.path, route.handler); return () => {} } },
+  }),
+}
+const bare = await import(`../index.js?no-translator=${Date.now()}`)
+bare.apply(noTranslator, {})
+const missing = await call('/skill-workshop/translate', { method: 'POST', body: { kind: 'own', key: 'user-dsh:file:flat', target: 'en' } })
+check('a missing translator is reported, not thrown', missing.status === 400 && String(missing.body?.error ?? '').includes('翻译服务'), JSON.stringify(missing.body).slice(0, 160))
+
 rmSync(home, { recursive: true, force: true })
 
 const failed = results.filter((entry) => !entry.ok)

@@ -807,8 +807,344 @@ function text(value, label, maximum = 2000) {
   return value.trim()
 }
 
+/* ------------------------------------------------------------ plugin skills */
+
+/**
+ * The active profile's folder.
+ *
+ * Installed bundles live in its `node_modules`, which is how a plugin's own
+ * bundled skills are found: they ship inside the package, never under the
+ * user's skill roots, so the ordinary scan cannot see them.
+ */
+function profileDir() {
+  if (process.env.DSH_PROFILE_DIR) return process.env.DSH_PROFILE_DIR
+  return join(dshHome(), 'profiles', process.env.DSH_PROFILE || 'desktop')
+}
+
+/**
+ * Folders inside an installed package that may hold bundled skills.
+ *
+ * A fixed list, not a recursive walk: these are the layouts packages actually
+ * use, and walking a package like ds-bot would read thousands of files on a
+ * page open.
+ */
+const SKILL_DIRS = ['skills', 'skill', 'lib/skills', 'src/host/skills', 'src/office/skills']
+
+/** Every SKILL.md under one candidate folder, or the folder's own when it is one skill. */
+function skillsIn(dir) {
+  if (!exists(dir)) return []
+  if (exists(join(dir, 'SKILL.md'))) return [{ file: join(dir, 'SKILL.md'), dir }]
+  const found = []
+  let entries
+  try {
+    entries = readdirSync(dir, { withFileTypes: true })
+  } catch {
+    return []
+  }
+  for (const entry of entries) {
+    if (!entry.isDirectory() || entry.name.startsWith('.')) continue
+    const file = join(dir, entry.name, 'SKILL.md')
+    if (exists(file)) found.push({ file, dir: join(dir, entry.name) })
+  }
+  return found
+}
+
+/** The packages this profile actually installs, from its manifest alone. */
+function installedPackages() {
+  const raw = readText(join(profileDir(), 'package.json'))
+  if (raw === undefined) return []
+  let manifest
+  try {
+    manifest = JSON.parse(raw)
+  } catch {
+    return []
+  }
+  const names = new Set(Object.keys(manifest?.dependencies ?? {}))
+  for (const name of Array.isArray(manifest?.dsh?.profile?.bundles) ? manifest.dsh.profile.bundles : []) names.add(name)
+  return [...names]
+}
+
+/**
+ * Whether a package's own code registers a skill provider.
+ *
+ * This separates two very different "not in the catalog" cases. A package that
+ * registers a provider (scriptor does, inside its writing preset) has skills
+ * the model can load once that mode is active; a package that only ships the
+ * folder has skills nothing ever reads. The page must not present them alike.
+ *
+ * Two markers, because packages register either directly or by mounting the
+ * shared filesystem provider with their own bundled root: `registerProvider`
+ * covers the first, `bundledSkillDir`/`skill-filesystem` the second.
+ *
+ * The scan is bounded — a fixed file budget, a size cap, and no node_modules —
+ * and cached per package, because it runs at most once per page load.
+ */
+/*
+ * Every way a package can publish a skill. There are two entry points on the
+ * registry and one indirect one, and a package uses whichever suits it:
+ *
+ *   registerProvider()          — a provider that lists many skills
+ *   skills.register()           — one embedded runtime skill, content in code
+ *   mounting skill-filesystem   — the shared provider pointed at a package dir
+ *
+ * Missing `skills.register` was a real bug: browser-skill publishes through it
+ * and was reported as unregistered while DSH was loading it fine.
+ */
+const PROVIDER_MARKERS = [
+  'registerProvider',
+  'skills.register(',
+  '.skills.register',
+  'bundledSkillDir',
+  'skill-filesystem',
+]
+const providerCache = new Map()
+function registersProvider(pkgDir) {
+  const cached = providerCache.get(pkgDir)
+  if (cached !== undefined) return cached
+  let answer = false
+  let budget = 160
+  const walk = (dir, depth) => {
+    if (answer || budget <= 0 || depth > 4) return
+    let entries
+    try {
+      entries = readdirSync(dir, { withFileTypes: true })
+    } catch {
+      return
+    }
+    for (const entry of entries) {
+      if (answer || budget <= 0) return
+      if (entry.name === 'node_modules' || entry.name.startsWith('.')) continue
+      const path = join(dir, entry.name)
+      if (entry.isDirectory()) {
+        walk(path, depth + 1)
+        continue
+      }
+      if (!/\.(?:js|mjs|cjs)$/u.test(entry.name)) continue
+      budget -= 1
+      try {
+        if (statSync(path).size > 3 * 1024 * 1024) continue
+      } catch {
+        continue
+      }
+      const source = readText(path)
+      if (source !== undefined && PROVIDER_MARKERS.some((marker) => source.includes(marker))) {
+        answer = true
+        return
+      }
+    }
+  }
+  walk(pkgDir, 0)
+  providerCache.set(pkgDir, answer)
+  return answer
+}
+
+/**
+ * Every plugin-bundled skill, grouped by the package that ships it.
+ *
+ * Two sources are merged on purpose, because neither is complete alone:
+ *
+ *   - the live registry says which skills the model can load *right now*, but
+ *     it is scope-aware, so a preset-scoped provider is invisible from here;
+ *   - the package folders say which skills exist on disk, including the ones
+ *     no provider ever registered.
+ *
+ * A skill present in the first is marked `loaded`; one that exists only on disk
+ * is `scoped` when its package registers a provider (it loads in that mode) and
+ * `unregistered` when nothing reads it at all.
+ */
+function pluginSkills(ctx) {
+  const root = join(profileDir(), 'node_modules')
+  const catalog = new Set()
+  let catalogError
+  const service = typeof ctx?.get === 'function' ? ctx.get('skills') : undefined
+  const plugins = []
+  const packages = installedPackages()
+  const dirs = []
+  for (const name of packages) {
+    const dir = join(root, name)
+    if (exists(dir)) dirs.push({ name, dir })
+  }
+  for (const { name, dir } of dirs) {
+    const found = []
+    for (const sub of SKILL_DIRS) {
+      for (const item of skillsIn(join(dir, sub))) {
+        if (!found.some((existing) => existing.file === item.file)) found.push(item)
+      }
+    }
+    if (found.length === 0) continue
+    let manifest = {}
+    try {
+      manifest = JSON.parse(readText(join(dir, 'package.json')) ?? '{}')
+    } catch {
+      manifest = {}
+    }
+    plugins.push({ name, dir, manifest, found })
+  }
+  const skills = []
+  for (const plugin of plugins) {
+    for (const item of plugin.found) {
+      const raw = readText(item.file)
+      if (raw === undefined) continue
+      const { values, body } = parseFrontmatter(raw)
+      const fallback = basename(item.dir)
+      const skillName = typeof values.name === 'string' && values.name.trim() !== '' ? values.name.trim() : fallback
+      skills.push({
+        key: `plugin:${plugin.name}:${skillName}`,
+        name: skillName,
+        description: typeof values.description === 'string' ? values.description : '',
+        package: plugin.name,
+        path: item.file,
+        bytes: Buffer.byteLength(raw, 'utf8'),
+        invocation: invocationOf(values),
+        bodyLength: body.trim().length,
+        updatedAt: mtimeOf(item.file),
+      })
+    }
+  }
+  if (service !== undefined && typeof service.list === 'function') {
+    try {
+      const listed = service.list({})
+      if (listed !== null && typeof listed.then === 'function') {
+        return Promise.resolve(listed).then((value) => finish(value), (error) => finish(undefined, error))
+      }
+      return finish(listed)
+    } catch (error) {
+      return finish(undefined, error)
+    }
+  }
+  return finish(undefined, new Error('技能注册表不可用'))
+
+  /** Mark each skill once the live catalog is known. */
+  function finish(listed, error) {
+    if (error !== undefined) catalogError = String(error?.message ?? error)
+    for (const skill of Array.isArray(listed) ? listed : []) {
+      if (typeof skill?.name === 'string') catalog.add(skill.name)
+    }
+    for (const skill of skills) {
+      if (catalog.has(skill.name)) skill.status = 'loaded'
+      else skill.status = registersProvider(join(root, skill.package)) ? 'scoped' : 'unregistered'
+    }
+    skills.sort((left, right) => left.package.localeCompare(right.package) || left.name.localeCompare(right.name))
+    const groups = []
+    for (const plugin of plugins) {
+      const members = skills.filter((skill) => skill.package === plugin.name)
+      if (members.length === 0) continue
+      groups.push({
+        // The package name is the honest label: a manifest description is a
+        // paragraph, not a heading, and the page shows it beneath the name.
+        id: plugin.name,
+        name: plugin.name,
+        package: plugin.name,
+        version: typeof plugin.manifest.version === 'string' ? plugin.manifest.version : undefined,
+        description: typeof plugin.manifest.description === 'string' ? plugin.manifest.description : '',
+        memberKeys: members.map((skill) => skill.key),
+      })
+    }
+    return { plugins: groups, skills, catalogError }
+  }
+}
+
+/**
+ * Read one plugin skill's file.
+ *
+ * The path comes from the page, so it is re-derived from a fresh scan and
+ * matched by key instead of being trusted: a caller cannot walk out of
+ * `node_modules` by passing a crafted path.
+ */
+function pluginSkillDetail(ctx, key) {
+  const scan = pluginSkills(ctx)
+  return Promise.resolve(scan).then((result) => {
+    const skill = (result?.skills ?? []).find((item) => item.key === key)
+    if (skill === undefined) throw new Error(`插件技能不存在：${key}`)
+    return {
+      ...skill,
+      content: readText(skill.path) ?? '',
+      resources: resourcesOf(dirname(skill.path)),
+    }
+  })
+}
+
+/**
+ * Translate one fragment through DSH's own translator service.
+ *
+ * The service is optional: a profile without it (or with every route refused)
+ * must still let the page render the original text. Provider choice is the
+ * service's, not this plugin's — the reader already picks it in Settings, and
+ * a second picker here would let the two disagree.
+ *
+ * Anonymous routes (Bing, Google) need no Session; the paid DeepSeek routes do,
+ * so a missing `sessionId` simply means "ask the anonymous routes".
+ */
+/**
+ * Split one body into provider-sized pieces at paragraph boundaries.
+ *
+ * A skill body is routinely longer than one provider request — the bundled
+ * Blender skill alone is over fifty thousand characters — so a single call
+ * would refuse most real skills. Paragraphs are the split unit because cutting
+ * mid-sentence is what makes machine translation read badly.
+ */
+function splitForTranslation(text, limit) {
+  const pieces = []
+  let current = ''
+  const push = () => {
+    if (current.trim() !== '') pieces.push(current)
+    current = ''
+  }
+  for (const paragraph of text.split(/\n{2,}/u)) {
+    const candidate = current === '' ? paragraph : `${current}\n\n${paragraph}`
+    if (candidate.length <= limit) {
+      current = candidate
+      continue
+    }
+    push()
+    // One paragraph longer than the limit still has to be sent: cut it on a
+    // sentence end where possible, otherwise hard-split at the limit.
+    if (paragraph.length > limit) {
+      let rest = paragraph
+      while (rest.length > limit) {
+        const window = rest.slice(0, limit)
+        const cut = Math.max(window.lastIndexOf('。'), window.lastIndexOf('. '), window.lastIndexOf('\n'))
+        const at = cut > limit * 0.5 ? cut + 1 : limit
+        pieces.push(rest.slice(0, at))
+        rest = rest.slice(at)
+      }
+      current = rest
+    } else {
+      current = paragraph
+    }
+  }
+  push()
+  return pieces
+}
+
+/** Translate one body, one provider-sized piece at a time, in order. */
+async function translateFragment(service, text, target, sessionId, signal) {
+  if (service === undefined) throw new Error('翻译服务不可用：当前 profile 没有挂载 translator')
+  const trimmed = typeof text === 'string' ? text.trim() : ''
+  if (trimmed === '') throw new Error('没有可翻译的正文')
+  const limit = typeof service.maxTextChars === 'number' && service.maxTextChars > 0 ? service.maxTextChars : 4000
+  const pieces = splitForTranslation(trimmed, limit)
+  const out = []
+  for (const piece of pieces) {
+    signal?.throwIfAborted?.()
+    const spec = service.resolve({
+      text: piece,
+      targetLanguage: target,
+      ...(sessionId === undefined ? {} : { sessionId }),
+    })
+    out.push(await service.translate(spec, signal))
+  }
+  return out.join('\n\n')
+}
+
 export function apply(ctx, config = {}) {
-  ctx.inject(['webServer'], (webCtx) => {
+  /*
+   * `translator` is optional: a profile without that bundle must still render
+   * the page, so the route reports "unavailable" instead of the plugin failing
+   * to mount. Cordis only resolves a service a plugin declares, which is why
+   * `ctx.get('translator')` on the outer context returned nothing.
+   */
+  ctx.inject(['webServer', 'translator'], (webCtx) => {
     /** One route: same-origin check, method guard, JSON answer with a readable failure. */
     const route = (path, methods, run) => webCtx.effect(() => webCtx.webServer.register({
       kind: 'exact',
@@ -864,6 +1200,49 @@ export function apply(ctx, config = {}) {
     })
 
     route('/skill', ['GET'], (_body, query) => detail(config, query.get('key') ?? ''))
+
+    /*
+     * Plugin skills are read-only on purpose: the files belong to the installed
+     * package, so an edit here would be reverted by the next package update and
+     * an entry in the trash would never come back. The page shows them, grouped
+     * by the package that ships them, and offers no write path at all.
+     */
+    route('/plugin-skills', ['GET'], () => pluginSkills(ctx))
+
+    route('/plugin-skills/skill', ['GET'], (_body, query) => pluginSkillDetail(ctx, query.get('key') ?? ''))
+
+    /*
+     * Translation of one skill's body. Both tabs read it, so the route takes
+     * the text from the file itself rather than from the page: a caller cannot
+     * use this as a general-purpose translation proxy, and the text sent to
+     * the provider is always the one the reader is looking at.
+     */
+    route('/translate', ['POST'], async (body) => {
+      const kind = body.kind === 'plugin' ? 'plugin' : 'own'
+      const key = text(body.key, '技能标识', 300)
+      const target = typeof body.target === 'string' && body.target.trim() !== '' ? body.target.trim() : 'zh'
+      if (!/^(?:auto|[a-zA-Z]{2,8}(?:-[a-zA-Z0-9]{1,8})*)$/u.test(target)) throw new Error('目标语言格式不正确')
+      const sessionId = typeof body.sessionId === 'string' && body.sessionId !== '' ? body.sessionId : undefined
+      const found = kind === 'plugin' ? await pluginSkillDetail(ctx, key) : detail(config, key)
+      /*
+       * Which text to send. The body is the instruction; the description is the
+       * one-line summary shown above it and in the picker. They are separate
+       * because a reader may want one without the other, and because the
+       * description is short enough to translate in one request.
+       *
+       * The frontmatter is never sent: the YAML keys are machine-read, and
+       * translating them would produce a document no tool could parse if
+       * anyone copied it back.
+       */
+      const field = body.field === 'description' ? 'description' : 'body'
+      const source = field === 'description'
+        ? String(found.description ?? '')
+        : String(found.content ?? '').replace(/^---[\s\S]*?\n---\n?/u, '')
+      if (source.trim() === '') throw new Error(field === 'description' ? '这个技能没有简介' : '这个技能没有正文')
+      const service = webCtx.translator
+      const translated = await translateFragment(service, source, target, sessionId)
+      return { text: translated, source, target, field, chars: source.trim().length }
+    })
 
     route('/version', ['GET'], (_body, query) => {
       const skill = locate(config, query.get('key') ?? '')

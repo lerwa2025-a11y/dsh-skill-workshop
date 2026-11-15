@@ -47,7 +47,43 @@ window.__ModuleLoader__.load({
       'setting.failed': '保存失败，请重试。',      'page.title': '技能管理',
       'page.description': '管理本机技能：开关可见性、改调用方式、编辑内容，删掉的进回收站。',
       'tab.skills': '技能',
+      'tab.plugin': '插件技能',
       'tab.trash': '回收站',
+      'plugin.title': '插件技能',
+      'plugin.body': '这些技能随已安装的插件一起发布，归插件所有，这里只读：不编辑、不删除、不进回收站。插件更新时它们会随之更新。',
+      'plugin.empty': '没有插件自带技能',
+      'plugin.emptyBody': '当前 profile 里已安装的插件都没有随包技能。',
+      'plugin.count': '{count} 个技能',
+      'plugin.version': 'v{version}',
+      'plugin.loaded': '已加载',
+      'plugin.loadedHint': '模型现在就能调用它。',
+      'plugin.scoped': '按模式加载',
+      'plugin.scopedHint': '插件注册了这个技能，但它只在对应模式（例如写作模式）下才生效，当前对话里看不到。',
+      'plugin.unregistered': '未注册',
+      'plugin.unregisteredHint': '插件包里带了这个文件，但插件没有把它注册给 DSH，模型实际看不到它。',
+      'plugin.readonly': '只读',
+      'plugin.search': '搜索插件技能',
+      'plugin.noMatch': '没有匹配的插件技能',
+      'plugin.package': '所属插件',
+      'plugin.path': '文件位置',
+      'plugin.bytes': '大小',
+      'plugin.updated': '更新于',
+      'plugin.invocation': '调用方式',
+      'plugin.status': '加载状态',
+      'plugin.noContent': '（这个文件没有正文）',
+      'plugin.catalogError': '技能注册表读不到（{reason}），下面的状态按磁盘推断。',
+      'translate.short': '翻简介',
+      'translate.run': '翻译',
+      'translate.working': '翻译中…',
+      'translate.show': '看译文',
+      'translate.hide': '看原文',
+      'translate.note': '译文由 DSH 的翻译服务生成，原文始终保留。',
+      'plugin.select': '选一个插件技能',
+      'plugin.selectBody': '左边按插件分组列出所有随包技能，点一条看它的内容和加载状态。',
+      'invocation.both': '模型 + 斜杠',
+      'invocation.slash': '仅斜杠命令',
+      'invocation.model': '仅模型',
+      'invocation.off': '已关闭',
       'common.loading': '读取中…',
       'common.save': '保存',
       'common.saving': '保存中…',
@@ -195,7 +231,43 @@ window.__ModuleLoader__.load({
       'setting.failed': 'Could not save; try again.',      'page.title': 'Skill studio',
       'page.description': 'Manage local skills: switch visibility, choose how each is invoked, edit the file, and restore what you removed.',
       'tab.skills': 'Skills',
+      'tab.plugin': 'Plugin skills',
       'tab.trash': 'Trash',
+      'plugin.title': 'Plugin skills',
+      'plugin.body': 'These ship inside the installed plugins and belong to them. This page only reads them: no editing, no deleting, no trash. A plugin update updates them.',
+      'plugin.empty': 'No plugin ships a skill',
+      'plugin.emptyBody': 'None of the plugins installed in this profile bundle a skill.',
+      'plugin.count': '{count} skills',
+      'plugin.version': 'v{version}',
+      'plugin.loaded': 'Loaded',
+      'plugin.loadedHint': 'The model can use it right now.',
+      'plugin.scoped': 'Mode-scoped',
+      'plugin.scopedHint': 'The plugin registers this skill, but only inside its own mode (writing mode, for example), so the current conversation does not see it.',
+      'plugin.unregistered': 'Not registered',
+      'plugin.unregisteredHint': 'The file ships in the package, but the plugin never registers it, so the model cannot see it.',
+      'plugin.readonly': 'Read-only',
+      'plugin.search': 'Search plugin skills',
+      'plugin.noMatch': 'No plugin skill matches',
+      'plugin.package': 'Plugin',
+      'plugin.path': 'File',
+      'plugin.bytes': 'Size',
+      'plugin.updated': 'Updated',
+      'plugin.invocation': 'Invocation',
+      'plugin.status': 'Status',
+      'plugin.noContent': '(this file has no body)',
+      'plugin.catalogError': 'The skill registry is unavailable ({reason}); the statuses below are inferred from disk.',
+      'translate.short': 'Summary',
+      'translate.run': 'Translate',
+      'translate.working': 'Translating…',
+      'translate.show': 'Show translation',
+      'translate.hide': 'Show original',
+      'translate.note': 'Translated by the DSH translation service; the original is always kept.',
+      'plugin.select': 'Pick a plugin skill',
+      'plugin.selectBody': 'The left column lists every bundled skill by plugin; open one to read its content and load status.',
+      'invocation.both': 'Model + slash',
+      'invocation.slash': 'Slash only',
+      'invocation.model': 'Model only',
+      'invocation.off': 'Off',
       'common.loading': 'Loading…',
       'common.save': 'Save',
       'common.saving': 'Saving…',
@@ -356,6 +428,9 @@ window.__ModuleLoader__.load({
     const api = {
       catalog: () => request('/catalog'),
       skill: (key) => request(`/skill?key=${encodeURIComponent(key)}`),
+      pluginSkills: () => request('/plugin-skills'),
+      pluginSkill: (key) => request(`/plugin-skills/skill?key=${encodeURIComponent(key)}`),
+      translate: (input) => request('/translate', { method: 'POST', body: JSON.stringify(input) }),
       trash: () => request('/trash'),
       version: (key, id) => request(`/version?key=${encodeURIComponent(key)}&id=${encodeURIComponent(id)}`),
       save: (input) => request('/skill/save', { method: 'POST', body: JSON.stringify(input) }),
@@ -406,6 +481,18 @@ window.__ModuleLoader__.load({
       if (seconds < 86400) return t('time.hours', { count: Math.floor(seconds / 3600) })
       if (seconds < 604800) return t('time.days', { count: Math.floor(seconds / 86400) })
       return new Date(time).toLocaleDateString()
+    }
+
+    /**
+     * The language a translation should arrive in.
+     *
+     * Read from the dictionary the page is already rendering rather than from a
+     * prop: `locale` on the slots names the dictionary namespace, not a language
+     * code. A reader on the Chinese page wants the English skill text in
+     * Chinese, so the page's own language IS the target.
+     */
+    function targetOf(t) {
+      return /[\u4e00-\u9fff]/u.test(t('translate.run')) ? 'zh' : 'en'
     }
 
     function invocationOf(invocation) {
@@ -798,6 +885,13 @@ window.__ModuleLoader__.load({
       const [tab, setTab] = useState('skills')
       const [catalog, setCatalog] = useState(null)
       const [trash, setTrash] = useState(null)
+      /*
+       * Plugin skills are read from their own endpoint, not folded into the
+       * catalog: they belong to the packages, they never enter a group, and a
+       * failure to read them must not blank the reader's own skills.
+       */
+      const [pluginSkills, setPluginSkills] = useState(null)
+      const [pluginError, setPluginError] = useState(null)
       const [selected, setSelected] = useState(undefined)
       const [query, setQuery] = useState('')
       /*
@@ -859,6 +953,25 @@ window.__ModuleLoader__.load({
         api.trash().then((value) => { if (active) setTrash(value.entries) }).catch((reason) => { if (active) fail(reason) })
         return () => { active = false }
       }, [revision, fail])
+
+      /*
+       * Plugin skills have their own failure state: a plugin whose package
+       * folder is unreadable must not read as "this page is broken", and the
+       * reader's own skills stay usable either way.
+       */
+      useEffect(() => {
+        let active = true
+        api.pluginSkills().then((value) => {
+          if (!active) return
+          setPluginSkills(value)
+          setPluginError(null)
+        }).catch((reason) => {
+          if (!active) return
+          setPluginSkills({ plugins: [], skills: [], catalogError: errorText(reason) })
+          setPluginError(errorText(reason))
+        })
+        return () => { active = false }
+      }, [revision])
 
       useEffect(() => {
         if (catalog === null) return
@@ -1045,14 +1158,14 @@ window.__ModuleLoader__.load({
       }), [t, revision, refresh, fail, done, useSkill, setGroupOn])
 
       const tabs = h('div', { className: 'ssTabs', role: 'tablist', 'aria-label': t('page.title') },
-        ['skills', 'trash'].map((value) => h('button', {
+        ['skills', 'plugin', 'trash'].map((value) => h('button', {
           key: value,
           type: 'button',
           role: 'tab',
           'aria-selected': tab === value,
           'data-active': tab === value ? '' : undefined,
           onClick: () => setTab(value),
-        }, t(`tab.${value}`), value === 'trash' && (trash ?? []).length > 0 ? h('b', { className: 'ssBadge' }, (trash ?? []).length) : null)))
+        }, t(`tab.${value}`))))
 
       const body = catalog === null
         ? error === null
@@ -1087,7 +1200,9 @@ window.__ModuleLoader__.load({
             },
             moveSkill,
           })
-          : h(TrashPage, { context, entries: trash })
+          : tab === 'plugin'
+            ? h(PluginSkillsPage, { context, data: pluginSkills, error: pluginError })
+            : h(TrashPage, { context, entries: trash })
 
       return h('div', { className: 'ssShell' },
         h('header', { className: 'ssHead' },
@@ -1369,6 +1484,260 @@ groupConfirm === null ? null : h(Confirm, {
     }
 
     /**
+     * The plugin skills tab.
+     *
+     * Everything here is read-only, so this page has no switch, no menu, no
+     * dialog and no write call. The grouping is the package that ships each
+     * skill — not the reader's own groups — because that is the only grouping
+     * that stays true across a plugin update.
+     */
+    function PluginSkillsPage(props) {
+      const t = props.context.t
+      const data = props.data
+      const [needle, setNeedle] = useState('')
+      const [selected, setSelected] = useState(undefined)
+      /*
+       * Groups start collapsed, the same way the reader's own groups do: the
+       * list is a table of contents first, and opening one is the deliberate
+       * act of reading it.
+       */
+      const [expanded, setExpanded] = useState(() => new Set())
+
+      if (data === null) return h(Spinner, { label: t('common.loading') })
+
+      const query = needle.trim().toLowerCase()
+      const matches = (skill) => query === ''
+        || skill.name.toLowerCase().includes(query)
+        || String(skill.description).toLowerCase().includes(query)
+      const skills = (data.skills ?? []).filter(matches)
+      const byKey = new Map(skills.map((skill) => [skill.key, skill]))
+      const groups = (data.plugins ?? [])
+        .map((group) => ({
+          ...group,
+          skills: (group.memberKeys ?? []).map((key) => byKey.get(key)).filter((skill) => skill !== undefined),
+        }))
+        .filter((group) => group.skills.length > 0)
+      const all = data.skills ?? []
+      const current = all.find((skill) => skill.key === selected)
+
+      /*
+       * Nothing to split when no package ships a skill: an empty split would
+       * still claim the tab's full height and show two blank columns.
+       */
+      if (all.length === 0) {
+        return h('div', { className: 'ssPane' },
+          h(Empty, { glyph: '⬡', title: t('plugin.empty') }, t('plugin.emptyBody')))
+      }
+
+      const list = h('aside', { className: 'ssList' },
+        h('header', { className: 'ssListBar' },
+          h('input', {
+            type: 'search',
+            value: needle,
+            placeholder: t('plugin.search'),
+            'aria-label': t('plugin.search'),
+            className: 'ssSearch',
+            onChange: (event) => setNeedle(event.target.value),
+          })),
+        query !== '' && skills.length === 0 ? h('p', { className: 'ssListNote' }, t('plugin.noMatch')) : null,
+        groups.map((group) => {
+          // A search always shows its matches; otherwise only what was opened.
+          const open = query !== '' || expanded.has(group.id)
+          return h('section', { key: group.id, className: 'ssListGroup' },
+            h('h5', null, h('div', { className: 'ssGroupHead' },
+              h('button', {
+                type: 'button',
+                className: 'ssGroupToggle',
+                'aria-expanded': open,
+                disabled: query !== '',
+                onClick: () => setExpanded((currentSet) => {
+                  const next = new Set(currentSet)
+                  if (next.has(group.id)) next.delete(group.id)
+                  else next.add(group.id)
+                  return next
+                }),
+              },
+              h('span', { 'aria-hidden': 'true' }, open ? '▾' : '▸'),
+              h('span', { className: 'ssGroupName' }, group.name),
+              group.version === undefined ? null : h('span', { className: 'ssGroupCount' }, t('plugin.version', { version: group.version })),
+              h('span', { className: 'ssGroupCount' }, group.skills.length)))),
+            open ? group.skills.map((skill) => h(PluginSkillRow, {
+              key: skill.key,
+              t,
+              skill,
+              selected: selected === skill.key,
+              onSelect: () => setSelected(skill.key),
+            })) : null)
+        }))
+
+      /*
+       * The same two-column split the skills tab uses, at the same height, so
+       * both lists scroll the same way. The explanation sits inside the pane
+       * above the detail: a wrapper around the split would take height from it
+       * and change how the list scrolls.
+       */
+      return h('div', { className: 'ssSplit ssSkillsSplit' }, list,
+        h('div', { className: 'ssPane ssPaneStack' },
+          h('p', { className: 'ssPluginIntro' }, t('plugin.body')),
+          data.catalogError === undefined ? null : h('p', { className: 'ssListNote' },
+            t('plugin.catalogError', { reason: data.catalogError })),
+          current === undefined
+            ? h(Empty, { glyph: '⬡', title: t('plugin.select') }, t('plugin.selectBody'))
+            : h(PluginSkillDetail, { key: current.key, context: props.context, skillKey: current.key })))
+    }
+
+    /** The one status badge a plugin skill can carry, and why it says that. */
+    function PluginStatus(props) {
+      const t = props.t
+      const status = props.status ?? 'unregistered'
+      const hint = t(`plugin.${status}Hint`)
+      return h('span', { className: 'ssTag', 'data-tone': status === 'loaded' ? 'accent' : 'quiet', title: hint },
+        t(`plugin.${status}`))
+    }
+
+    function PluginSkillRow(props) {
+      const t = props.t
+      const skill = props.skill
+      return h('button', {
+        type: 'button',
+        className: 'ssRow',
+        'data-active': props.selected ? '' : undefined,
+        'aria-current': props.selected ? 'true' : undefined,
+        onClick: props.onSelect,
+      },
+      h('span', { className: 'ssRowMain' },
+        h('span', { className: 'ssRowText' },
+          h('strong', null, h('span', null, skill.name), h(PluginStatus, { t, status: skill.status })),
+          skill.description === '' ? null : h('small', null, skill.description))))
+    }
+
+    function PluginSkillDetail(props) {
+      const t = props.context.t
+      const [detail, setDetail] = useState(null)
+      const [error, setError] = useState(null)
+      const translation = useTranslation(props.context, 'plugin', props.skillKey)
+      const summary = useTranslation(props.context, 'plugin', props.skillKey, 'description')
+
+      useEffect(() => {
+        let active = true
+        setDetail(null)
+        setError(null)
+        props.context.api.pluginSkill(props.skillKey).then((value) => {
+          if (active) setDetail(value)
+        }).catch((reason) => {
+          if (active) setError(errorText(reason))
+        })
+        return () => { active = false }
+      }, [props.skillKey, props.context.api])
+
+      if (error !== null) {
+        return h('article', { className: 'ssDetail' },
+          h(Empty, { glyph: '!', title: t('loadFailed') }, error))
+      }
+      if (detail === null) return h(Spinner, { label: t('common.loading') })
+
+      return h('article', { className: 'ssDetail' },
+        h('header', { className: 'ssDetailHead' },
+          h('div', null,
+            h('h3', null, detail.name),
+            detail.description === '' ? null : h('p', null, summary.shown && summary.translated !== null ? summary.translated : detail.description),
+            h('span', { className: 'ssMeta' },
+              h('span', null, h(PluginStatus, { t, status: detail.status })),
+              h('code', null, detail.package),
+              h('code', { title: detail.path }, detail.path),
+              h('span', null, relative(t, detail.updatedAt)),
+              h('span', null, size(detail.bytes)))),
+          h('div', { className: 'ssDetailActions' },
+            detail.description === '' ? null : h(Button, { variant: 'ghost', disabled: summary.busy, onClick: summary.run }, summary.label),
+            h(Button, { variant: 'outline', disabled: translation.busy, onClick: translation.run }, translation.label),
+            h(Tag, { tone: 'quiet' }, t('plugin.readonly')))),
+        h('div', { className: 'ssInvocation' },
+          h('span', { className: 'ssInvocationLabel' }, t('plugin.invocation')),
+          h('span', null, t(`invocation.${invocationOf(detail.invocation)}`)),
+          h('span', { className: 'ssInvocationHint' }, t(`plugin.${detail.status ?? 'unregistered'}Hint`))),
+        (detail.resources ?? []).length === 0 ? null : h('div', { className: 'ssFolds' },
+          h(Fold, { title: t('detail.resources'), meta: String(detail.resources.length) },
+            h('ul', { className: 'ssResources' }, detail.resources.map((item) => h('li', { key: item.path },
+              h('code', null, item.path), h('span', null, size(item.bytes))))))),
+        h(SkillBody, { context: props.context, content: detail.content, translation }))
+    }
+
+    /**
+     * A skill body with an optional translation.
+     *
+     * The original stays on screen and stays the default: translation is a
+     * reading aid, never a replacement, so a failure only costs the aid. Both
+     * detail pages use this one component, which keeps the two tabs behaving
+     * the same way.
+     */
+    /**
+     * The translation state of one open skill.
+     *
+     * It lives beside the detail page rather than inside the body so the
+     * control can sit in the header with the other actions, where the reader
+     * looks for it; the body only renders whichever text is current.
+     */
+    function useTranslation(context, kind, skillKey, field = 'body') {
+      const t = context.t
+      const [translated, setTranslated] = useState(null)
+      const [shown, setShown] = useState(false)
+      const [busy, setBusy] = useState(false)
+      // A different skill must not inherit the previous one's translation.
+      const [owner, setOwner] = useState(skillKey)
+      if (owner !== skillKey) {
+        setOwner(skillKey)
+        setTranslated(null)
+        setShown(false)
+      }
+
+      const run = async () => {
+        if (translated !== null) {
+          setShown((value) => !value)
+          return
+        }
+        setBusy(true)
+        try {
+          const answer = await context.api.translate({ kind, key: skillKey, field, target: targetOf(t) })
+          setTranslated(answer.text)
+          setShown(true)
+        } catch (error) {
+          // A refused translation is not a page error: the text is still there.
+          context.fail(error)
+        } finally {
+          setBusy(false)
+        }
+      }
+
+      const key = field === 'description' ? 'translate.short' : 'translate.run'
+      return {
+        translated,
+        shown,
+        busy,
+        run,
+        // Only the short field can hide its label: the header row has no space
+        // for a sentence, and the state is visible from the text itself.
+        label: busy
+          ? t('translate.working')
+          : translated === null
+            ? t(key)
+            : shown
+              ? t('translate.hide')
+              : t('translate.show'),
+      }
+    }
+
+    /** The body, showing the translation only while the reader asked for it. */
+    function SkillBody(props) {
+      const t = props.context.t
+      const source = props.content.replace(/^---[\s\S]*?\n---\n?/u, '')
+      if (source.trim() === '') return h('p', { className: 'ssMuted' }, t('plugin.noContent'))
+      const showing = props.translation !== undefined && props.translation.shown && props.translation.translated !== null
+      return h('div', { className: 'ssBody2' },
+        h('div', { className: 'ssDoc' }, markdown(showing ? props.translation.translated : source)),
+        showing ? h('p', { className: 'ssMuted ssBodyNote' }, t('translate.note')) : null)
+    }
+
+    /**
      * One group's switch.
      *
      * A group is on only when every member is on; a partly-off group reads as
@@ -1498,6 +1867,8 @@ groupConfirm === null ? null : h(Confirm, {
 
     function SkillDetail(props) {
       const t = props.context.t
+      const translation = useTranslation(props.context, 'own', props.skillKey)
+      const summary = useTranslation(props.context, 'own', props.skillKey, 'description')
       const [skill, setSkill] = useState(null)
       const hintId = React.useId()
       // `api` and `fail` are stable; the revision only says when to re-read.
@@ -1542,13 +1913,15 @@ groupConfirm === null ? null : h(Confirm, {
         h('header', { className: 'ssDetailHead' },
           h('div', null,
             h('h3', null, skill.name),
-            h('p', null, skill.description),
+            skill.description === '' ? null : h('p', null, summary.shown && summary.translated !== null ? summary.translated : skill.description),
             h('span', { className: 'ssMeta' },
               h('span', null, rootLabel(t, skill.root)),
               h('code', { title: skill.path }, skill.path),
               h('span', null, relative(t, skill.updatedAt)))),
           h('div', { className: 'ssDetailActions' },
             usable ? h(Button, { variant: 'outline', onClick: () => props.context.useSkill(skill.name) }, t('skills.use')) : null,
+            skill.description === '' ? null : h(Button, { variant: 'ghost', disabled: summary.busy, onClick: summary.run }, summary.label),
+            h(Button, { variant: 'outline', disabled: translation.busy, onClick: translation.run }, translation.label),
             h(Button, { variant: 'outline', disabled: busy || shadowed, onClick: () => setEditing(skill.content) }, t('common.edit')),
             h(MoreMenu, {
               label: t('common.more'),
@@ -1572,7 +1945,7 @@ groupConfirm === null ? null : h(Confirm, {
           // reader never has to infer it from two flag words.
           h('span', { id: hintId, className: 'ssInvocationHint' }, t(`invocation.${invocation}Hint`, { name: skill.name }))),
         skill.whenToUse === undefined ? null : h('p', { className: 'ssWhen' }, skill.whenToUse),
-        h('div', { className: 'ssDoc' }, markdown(skill.content.replace(/^---[\s\S]*?\n---\n?/u, ''))),
+        h(SkillBody, { context: props.context, content: skill.content, translation }),
         h('div', { className: 'ssFolds' },
           h(Fold, { title: t('versions.title'), meta: String(skill.versions.length) },
             skill.versions.length === 0
@@ -1960,14 +2333,35 @@ groupConfirm === null ? null : h(Confirm, {
       const ref = useRef(null)
       const t = props.t
 
-      // The catalog is read on first open, not on mount: a composer is mounted
-      // for every session and most of them never open the picker.
+      /*
+       * The list is every skill the composer can actually take, which is not
+       * only what lives under the local skill roots.
+       *
+       * DSH resolves `/name` against its own registry, and that registry also
+       * carries skills bundled inside installed plugins — those never appear in
+       * this plugin's own catalog scan, because that scan reads directories and
+       * plugin skills live in node_modules. Reading both keeps the button and
+       * the slash gesture offering the same set: a skill you can type must be a
+       * skill you can click.
+       *
+       * Only `loaded` plugin skills are offered. A `scoped` one loads solely
+       * inside its plugin's own mode, and an `unregistered` one never loads at
+       * all, so listing either would write a token DSH then refuses.
+       */
       useEffect(() => {
         if (!open || catalog !== null) return undefined
         let active = true
-        api.catalog()
-          .then((value) => { if (active) setCatalog(value.skills.filter((skill) => skill.invocation.userInvocable && skill.shadowedBy === undefined)) })
-          .catch(() => { if (active) setCatalog([]) })
+        Promise.all([
+          api.catalog().then((value) => value.skills.filter((skill) => skill.invocation.userInvocable && skill.shadowedBy === undefined)),
+          // A profile without the plugin tab's endpoint still gets the local list.
+          api.pluginSkills()
+            .then((value) => (value.skills ?? [])
+              .filter((skill) => skill.status === 'loaded' && skill.invocation.userInvocable)
+              .map((skill) => ({ ...skill, root: 'plugin', plugin: skill.package })))
+            .catch(() => []),
+        ]).then(([own, bundled]) => {
+          if (active) setCatalog([...own, ...bundled])
+        }).catch(() => { if (active) setCatalog([]) })
         return () => { active = false }
       }, [open, catalog])
 
@@ -2135,7 +2529,7 @@ groupConfirm === null ? null : h(Confirm, {
         tag.dataset.pluginCss = CSS_ID
         document.head.appendChild(tag)
       }
-      tag.textContent = "/*\n * 技能管理. Quiet surfaces borrowed from the skills page this replaces:\n * hairlines instead of boxes, weight and grey for hierarchy, and short, soft\n * motion where something opens or arrives.\n *\n * Every class is prefixed `ss`, and every colour comes from a `--ss-*` token\n * declared once on `.ssShell`, so the sheet carries no dependency on another\n * plugin's variables.\n */\n\n.ssShell {\n  /*\n   * Where the page head starts, so it lines up with the sidebar's New Session\n   * row rather than floating above it.\n   *\n   * The centre column already clears the Windows caption (the frame pads it\n   * out); what remains is the sidebar's brand row above New Session: 40px of\n   * row plus that row's 6px offset. Those are the sidebar's own geometry, read\n   * from its published rules — never measured off its DOM, which belongs to\n   * another plugin.\n   *\n   * macOS pads nothing in the frame and keeps a 52px strip in the sidebar\n   * instead, so the value follows the frame's published clearance there.\n   */\n  --ss-head-top: 46px;\n  --ss-bg: var(--dsw-alias-bg-base);\n  --ss-layer-1: var(--dsw-alias-bg-layer-1);\n  --ss-fill: var(--dsw-alias-bg-module-platform);\n  --ss-input: var(--dsw-alias-bg-layer-1);\n  --ss-text: var(--dsw-alias-label-primary);\n  --ss-muted: var(--dsw-alias-label-secondary);\n  --ss-faint: var(--dsw-alias-label-tertiary);\n  --ss-line: var(--dsw-alias-border-l2);\n  --ss-line-strong: var(--dsw-alias-border-l3);\n  --ss-field-line: var(--dsw-alias-border-l4);\n  --ss-card-line: var(--dsw-alias-settings-card-stroke);\n  --ss-accent: var(--dsw-alias-state-business-primary);\n  --ss-hover: var(--dsw-alias-interactive-bg-hover);\n  --ss-danger: var(--dsw-alias-state-error-primary);\n  --ss-success: var(--dsw-alias-state-success-primary);\n  --ss-warn: var(--dsw-alias-state-warn-primary);\n  --ss-focus: var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary));\n  --ss-code: var(--ds-font-family-code, \"SFMono-Regular\", Consolas, monospace);\n  --ss-sans: var(--dsw-font-family, -apple-system, BlinkMacSystemFont, \"Segoe UI\", sans-serif);\n\n  box-sizing: border-box;\n  display: flex;\n  min-width: 0;\n  min-height: 0;\n  flex-direction: column;\n  overflow: hidden;\n  height: 100%;\n  color: var(--ss-text);\n  background: var(--ss-bg);\n  font: 13px/20px var(--ss-sans);\n  -webkit-tap-highlight-color: transparent;\n}\n/* Windows desktop: the frame pads out the caption, and the brand row is 40px\n   with New Session 6px below it. */\nhtml[data-windows-titlebar] .ssShell { --ss-head-top: 46px; }\n/* macOS desktop: the frame pads nothing and the sidebar keeps its own 52px\n   strip, whose published clearance is the same measure. */\nhtml[data-platform='darwin'] .ssShell { --ss-head-top: var(--dsh-frame-top-clearance, 48px); }\nhtml[data-platform='darwin'][data-fullscreen] .ssShell { --ss-head-top: 20px; }\nhtml[data-windows-titlebar][data-fullscreen] .ssShell { --ss-head-top: 16px; }\n/* Plain Web: no caption and no strip, so the sidebar's full brand row shows. */\nhtml:not([data-platform]):not([data-windows-titlebar]) .ssShell { --ss-head-top: 60px; }\n\n.ssShell *,\n.ssShell *::before,\n.ssShell *::after { box-sizing: border-box; }\n:where(.ssShell) :where(button, input, select, textarea) { color: inherit; font: inherit; }\n.ssShell button:focus-visible,\n.ssShell input:focus-visible,\n.ssShell select:focus-visible,\n.ssShell textarea:focus-visible,\n.ssShell summary:focus-visible { outline: var(--dsw-focus-ring-width, 2px) solid var(--ss-focus); outline-offset: 2px; }\n.ssShell :is(textarea, input:not([type='checkbox'], [type='radio'])):focus-visible { outline: none; }\n.ssShell input[type='search']:focus-visible { outline: 2px solid var(--ss-focus); outline-offset: -1px; }\n.ssShell code { font-family: var(--ss-code); font-size: .92em; }\n\n/* ---- the page frame ------------------------------------------------------- */\n\n/*\n * The page head sits where the sidebar's New Session row sits.\n *\n * A global panel occupies the centre column, whose own top already clears the\n * Windows caption (`.frame` padding). What is left is the sidebar's brand row:\n * `windowDrag` measures the real offsets and publishes them as variables, and\n * the fallback below is the same sum for a composition that does not.\n */\n/* The one header block: the title row, then the tab row, then one hairline. */\n.ssHead {\n  display: flex;\n  flex: none;\n  flex-direction: column;\n  border-bottom: .5px solid var(--ss-line);\n  background: var(--ss-bg);\n}\n\n.ssMasthead {\n  display: flex;\n  align-items: flex-end;\n  gap: 12px;\n  padding: var(--ss-head-top, 46px) 24px 0;\n}\n.ssHeading { display: flex; min-width: 0; flex: 1; flex-direction: column; gap: 1px; padding-bottom: 8px; }\n.ssHeading h2 { margin: 0; font-size: 14px; font-weight: 600; line-height: 22px; }\n.ssHeading p { margin: 0; overflow: hidden; color: var(--ss-faint); font-size: 12px; line-height: 18px; text-overflow: ellipsis; white-space: nowrap; }\n.ssMastheadActions { display: flex; flex: none; align-items: center; gap: 8px; padding-bottom: 8px; }\n\n.ssTabs { display: flex; min-width: 0; flex: none; gap: 22px; overflow-x: auto; padding: 0 24px; scrollbar-width: none; }\n.ssTabs::-webkit-scrollbar { display: none; }\n.ssTabs button {\n  position: relative;\n  min-width: max-content;\n  /* The header's own hairline is the rule the selected tab sits on; a tab's\n     underline covers it rather than stacking a second one. */\n  margin-bottom: -1px;\n  border: 0;\n  border-bottom: 2px solid transparent;\n  padding: 6px 1px 9px;\n  color: var(--ss-faint);\n  background: none;\n  font-size: 13px;\n  line-height: 20px;\n  cursor: pointer;\n}\n.ssTabs button:hover { color: var(--ss-text); }\n.ssTabs button[data-active] { border-bottom-color: var(--ss-text); color: var(--ss-text); }\n\n.ssBody { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior-y: contain; padding: 16px 24px 24px; }\n.ssPage { display: flex; min-width: 0; flex-direction: column; gap: 12px; animation: ss-arrive 220ms cubic-bezier(.2, 0, 0, 1); }\n\n@keyframes ss-arrive {\n  from { opacity: 0; transform: translateY(4px); }\n  to { opacity: 1; transform: none; }\n}\n@keyframes ss-pop {\n  0% { opacity: 0; transform: scale(.6); }\n  70% { transform: scale(1.08); }\n  100% { opacity: 1; transform: none; }\n}\n@keyframes ss-spin {\n  to { transform: rotate(360deg); }\n}\n\n/* ---- text, links, feedback ------------------------------------------------ */\n\n.ssMuted { margin: 0; color: var(--ss-faint); font-size: 12px; line-height: 18px; }\n.ssBusy { display: inline-flex; align-items: center; gap: 8px; padding: 6px 0; color: var(--ss-muted); font-size: 12px; line-height: 18px; }\n.ssSpinner {\n  width: 12px;\n  height: 12px;\n  flex: none;\n  border: 1.5px solid var(--ss-line-strong, var(--ss-line));\n  border-top-color: var(--ss-accent);\n  border-radius: 999px;\n  animation: ss-spin 800ms linear infinite;\n}\n\n.ssLink {\n  border: 0;\n  border-radius: var(--dsw-radius-xs, 4px);\n  padding: 0 2px;\n  color: var(--ss-accent);\n  background: transparent;\n  font: inherit;\n  font-size: 12px;\n  line-height: 18px;\n  cursor: pointer;\n  transition: background-color 120ms ease;\n}\n.ssLink:hover { background: color-mix(in srgb, var(--ss-accent) 8%, transparent); }\n\n.ssAlert,\n.ssNotice {\n  display: flex;\n  align-items: center;\n  gap: 8px;\n  margin-bottom: 12px;\n  padding: 8px 10px 8px 12px;\n  border-radius: var(--dsw-radius-md);\n  color: var(--ss-text);\n  font-size: 12px;\n  line-height: 18px;\n}\n.ssAlert { background: color-mix(in srgb, var(--ss-danger) 9%, transparent); }\n.ssNotice { background: color-mix(in srgb, var(--ss-success) 9%, transparent); }\n.ssAlert > span,\n.ssNotice > span { min-width: 0; flex: 1; overflow-wrap: anywhere; }\n/* The failure list stays folded: a big group can fail many skills at once. */\n.ssAlertDetail { flex: 1 1 100%; min-width: 0; }\n.ssAlertDetail summary { width: fit-content; color: var(--ss-muted); cursor: pointer; }\n.ssAlertDetail ul { display: grid; gap: 4px; margin: 6px 0 0; padding: 0; list-style: none; }\n.ssAlertDetail li { display: flex; gap: 8px; min-width: 0; }\n.ssAlertDetail code { flex: none; color: var(--ss-text); font: 11px/18px var(--ss-code); }\n.ssAlertDetail li > span { min-width: 0; overflow-wrap: anywhere; color: var(--ss-muted); }\n/* An alert that carries a folded list lays out as a block, not one line. */\n.ssAlert:has(.ssAlertDetail) { flex-wrap: wrap; }\n\n.ssDismiss {\n  display: grid;\n  width: 20px;\n  height: 20px;\n  flex: none;\n  place-items: center;\n  border: 0;\n  border-radius: var(--dsw-radius-xs, 4px);\n  padding: 0;\n  color: inherit;\n  background: transparent;\n  font-size: 15px;\n  line-height: 1;\n  opacity: .55;\n  cursor: pointer;\n  transition: opacity 120ms ease, background-color 120ms ease;\n}\n.ssDismiss:hover { background: var(--ss-hover); opacity: 1; }\n\n\n.ssWarn { margin: 0; padding: 8px 12px; border-radius: var(--dsw-radius-md); color: var(--ss-text); background: color-mix(in srgb, var(--ss-warn) 11%, transparent); font-size: 12px; line-height: 18px; }\n\n.ssBadge {\n  display: inline-block;\n  min-width: 16px;\n  margin-left: 6px;\n  padding: 0 5px;\n  border-radius: 999px;\n  color: var(--dsw-alias-label-inverse, #fff);\n  background: var(--ss-accent);\n  font-size: 11px;\n  font-weight: 500;\n  line-height: 16px;\n  text-align: center;\n  font-variant-numeric: tabular-nums;\n  animation: ss-pop 260ms cubic-bezier(.2, 0, 0, 1);\n}\n\n/* ---- quiet buttons -------------------------------------------------------- */\n\n.ssIconButton {\n  display: grid;\n  width: 28px;\n  height: 28px;\n  flex: none;\n  place-items: center;\n  border: 0;\n  border-radius: var(--dsw-radius-sm);\n  padding: 0;\n  color: var(--ss-muted);\n  background: transparent;\n  cursor: pointer;\n  transition: color 120ms ease, background-color 120ms ease;\n}\n.ssIconButton:hover:not(:disabled),\n.ssIconButton[aria-expanded='true'] { color: var(--ss-text); background: var(--ss-hover); }\n.ssIconButton:disabled { cursor: default; opacity: .45; }\n\n/* ---- empty states --------------------------------------------------------- */\n\n.ssEmpty { display: grid; min-height: 280px; place-content: center; justify-items: center; gap: 6px; animation: ss-arrive 260ms cubic-bezier(.2, 0, 0, 1); }\n.ssEmptyGlyph { color: var(--ss-faint); font-size: 22px; line-height: 1; }\n.ssEmptyTitle { margin: 0; font-size: 14px; font-weight: 600; line-height: 22px; }\n.ssEmptyBody { margin: 0; max-width: 42ch; color: var(--ss-muted); font-size: 12px; line-height: 18px; text-align: center; }\n.ssEmptyActions { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin-top: 4px; }\n\n/* ---- list and detail ------------------------------------------------------ */\n\n.ssSplit { display: grid; min-height: 560px; grid-template-columns: minmax(268px, 340px) minmax(0, 1fr); gap: 12px; }\n.ssList,\n.ssPane { min-width: 0; border: .5px solid var(--ss-card-line); border-radius: var(--dsw-radius-lg); }\n.ssList { display: flex; flex-direction: column; overflow: hidden; padding-bottom: 6px; }\n.ssPane { padding: clamp(16px, 2vw, 24px); overflow: hidden; }\n\n/* Keep each list beside its detail while browsing long skills. */\n.ssSkillsSplit { height: max(320px, calc(100dvh - 320px)); min-height: 0; }\n.ssSkillsSplit > .ssList,\n.ssSkillsSplit > .ssPane { min-height: 0; overflow-y: auto; overscroll-behavior-y: contain; }\n.ssSkillsSplit > .ssList > * { flex-shrink: 0; }\n.ssSkillsSplit > .ssList { height: 100%; box-sizing: border-box; }\n\n.ssListBar { display: flex; align-items: center; gap: 8px; padding: 10px; border-bottom: .5px solid var(--ss-line); }\n.ssListBar > :first-child { min-width: 0; flex: 1; }\n.ssSearch {\n  width: 100%;\n  min-width: 0;\n  height: 28px;\n  border: .5px solid var(--ss-field-line);\n  border-radius: var(--dsw-radius-md);\n  outline: 0;\n  padding: 0 9px;\n  color: var(--ss-text);\n  background: var(--ss-input);\n  font: inherit;\n  font-size: 12px;\n  line-height: 26px;\n  transition: border-color 120ms ease;\n}\n.ssSearch::placeholder { color: var(--ss-faint); }\n.ssSearch:focus { border-color: var(--ss-accent); }\n.ssListNote { margin: 0; padding: 18px 16px; color: var(--ss-faint); font-size: 12px; line-height: 18px; text-align: center; }\n.ssListGroup h5 { display: flex; align-items: center; margin: 10px 10px 2px 12px; color: var(--ss-faint); font-size: 11px; font-weight: 500; letter-spacing: .02em; line-height: 16px; }\n.ssGroupToggle { display: flex; width: 100%; align-items: center; gap: 8px; border: 0; padding: 4px 0; color: inherit; background: transparent; font: inherit; text-align: start; cursor: pointer; }\n.ssGroupToggle > :nth-child(2) { min-width: 0; flex: 1; overflow: hidden; text-overflow: ellipsis; }\n.ssGroupToggle > :last-child { flex: none; }\n.ssGroupToggle small { display: block; overflow: hidden; font-size: 10px; font-weight: 400; text-overflow: ellipsis; }\n\n/* A skill row: icon, name and one line, then Use on hover and the switch. */\n.ssIcon {\n  display: grid;\n  width: 30px;\n  height: 30px;\n  flex: none;\n  place-items: center;\n  border-radius: var(--dsw-radius-md);\n  color: var(--ss-muted);\n  background: var(--ss-fill);\n  font-size: 13px;\n  font-weight: 600;\n  line-height: 1;\n  transition: color 140ms ease, background-color 140ms ease;\n}\n.ssRow {\n  position: relative;\n  display: flex;\n  align-items: center;\n  gap: 6px;\n  margin: 2px 6px 0;\n  padding-right: 8px;\n  border-radius: var(--dsw-radius-md);\n  transition: background-color 140ms ease;\n}\n.ssRow:hover { background: var(--ss-hover); }\n.ssRow[data-selected] { background: var(--ss-fill); }\n.ssRow[data-selected] .ssIcon { color: var(--ss-text); background: var(--ss-layer-1, var(--ss-hover)); }\n.ssRow[data-off] .ssRowText { opacity: .55; }\n.ssRowMain { display: flex; min-width: 0; flex: 1; align-items: center; gap: 10px; border: 0; padding: 8px 0 8px 8px; color: var(--ss-text); background: transparent; font: inherit; text-align: left; cursor: pointer; }\n.ssRowMain:focus-visible { border-radius: var(--dsw-radius-md); outline: none; box-shadow: inset 0 0 0 2px var(--ss-focus); }\n.ssRowText { display: grid; min-width: 0; gap: 1px; transition: opacity 140ms ease; }\n.ssRowText strong { display: flex; min-width: 0; align-items: center; gap: 6px; font-size: 13px; font-weight: 500; line-height: 20px; white-space: nowrap; }\n.ssRowText strong > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }\n.ssRowText small { overflow: hidden; color: var(--ss-faint); font-size: 12px; line-height: 18px; text-overflow: ellipsis; white-space: nowrap; }\n.ssRowActions { display: flex; flex: none; align-items: center; gap: 8px; }\n.ssUse { opacity: 0; transform: translateX(4px); pointer-events: none; transition: opacity 140ms ease, transform 180ms cubic-bezier(.2, 0, 0, 1); }\n.ssRow:hover .ssUse,\n.ssRow:focus-within .ssUse { opacity: 1; transform: none; pointer-events: auto; }\n@media (hover: none) { .ssUse { opacity: 1; transform: none; pointer-events: auto; } }\n\n.ssProblems { margin: 12px 12px 4px; color: var(--ss-faint); font-size: 12px; line-height: 18px; }\n.ssProblems summary { width: fit-content; border-radius: var(--dsw-radius-xs, 4px); padding: 0 2px; cursor: pointer; }\n.ssProblems summary:hover { color: var(--ss-muted); }\n.ssProblems ul { display: grid; gap: 6px; margin: 8px 0 0; padding: 0; list-style: none; }\n.ssProblems li { display: grid; gap: 2px; }\n.ssProblems code { color: var(--ss-muted); font: 11px/16px var(--ss-code); }\n\n/* ---- detail --------------------------------------------------------------- */\n\n.ssDetail { display: grid; min-width: 0; grid-template-columns: minmax(0, 1fr); gap: 14px; animation: ss-arrive 200ms cubic-bezier(.2, 0, 0, 1); }\n.ssDetailHead { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }\n.ssDetailHead > div:first-child { display: grid; min-width: 0; gap: 4px; }\n.ssDetailHead h3 { margin: 0; overflow-wrap: anywhere; font-size: 17px; font-weight: 600; line-height: 26px; }\n.ssDetailHead p { margin: 0; color: var(--ss-muted); font-size: 13px; line-height: 20px; }\n.ssDetailActions { display: flex; flex: none; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 6px; }\n.ssMeta { display: flex; min-width: 0; flex-wrap: wrap; align-items: center; gap: 0 6px; color: var(--ss-faint); font-size: 12px; line-height: 18px; }\n.ssMeta > * + *::before { content: '·'; margin-right: 6px; color: var(--ss-line-strong, var(--ss-faint)); }\n.ssMeta code { min-width: 0; max-width: 100%; overflow: hidden; font: 11px/18px var(--ss-code); text-overflow: ellipsis; white-space: nowrap; }\n.ssInvocation { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }\n.ssInvocationHint { flex: 1 1 100%; margin: 0; color: var(--ss-faint); font-size: 12px; line-height: 18px; }\n.ssInvocationLabel { color: var(--ss-muted); font-size: 12px; line-height: 18px; }\n.ssInvocation select {\n  height: 28px;\n  /* The labels name both surfaces, so the field sizes to its longest option\n     instead of clipping at the column edge. */\n  min-width: 16em;\n  max-width: 100%;\n  border: .5px solid var(--ss-field-line);\n  border-radius: var(--dsw-radius-md);\n  padding: 0 24px 0 8px;\n  color: var(--ss-text);\n  background: var(--ss-input);\n  font-size: 12px;\n  line-height: 26px;\n  cursor: pointer;\n}\n.ssWhen { margin: 0; color: var(--ss-muted); font-size: 12px; line-height: 18px; }\n\n/* ---- a skill's SKILL.md, read as a document ------------------------------- */\n\n.ssDoc { min-width: 0; overflow-wrap: anywhere; color: var(--ss-text); font-size: 13px; line-height: 1.75; }\n.ssDoc > :first-child { margin-top: 0; }\n.ssDoc > :last-child { margin-bottom: 0; }\n.ssDoc h1, .ssDoc h2, .ssDoc h3, .ssDoc h4 { margin: 1.4em 0 .5em; color: var(--ss-text); font-weight: 600; line-height: 1.4; }\n.ssDoc h1 { font-size: 1.25em; }\n.ssDoc h2 { font-size: 1.1em; }\n.ssDoc h3, .ssDoc h4 { font-size: 1em; }\n.ssDoc p, .ssDoc ul, .ssDoc ol, .ssDoc blockquote, .ssDoc table, .ssDoc pre { margin: .7em 0; }\n.ssDoc ul, .ssDoc ol { padding-left: 1.5em; }\n.ssDoc li + li { margin-top: .25em; }\n.ssDoc li::marker { color: var(--ss-faint); }\n.ssDoc blockquote { margin-inline: 0; padding: .1em 1em; border-left: 2px solid var(--ss-line-strong, var(--ss-line)); color: var(--ss-muted); }\n.ssDoc code { padding: .12em .38em; border-radius: var(--dsw-radius-xs, 4px); color: var(--ss-text); background: var(--dsw-alias-markdown-inline-code, var(--ss-fill)); font: .9em/1.55 var(--ss-code); }\n.ssDoc pre { max-width: 100%; overflow: auto; padding: 10px 14px; border-radius: var(--dsw-radius-md); background: var(--dsw-alias-markdown-code-block, var(--ss-fill)); }\n.ssDoc pre code { padding: 0; background: transparent; font-size: 12px; }\n.ssDoc a { color: var(--ss-accent); text-decoration-thickness: 1px; text-underline-offset: 3px; }\n.ssDoc hr { margin: 1.6em 0; border: 0; border-top: .5px solid var(--ss-line); }\n.ssDoc table { display: block; max-width: 100%; overflow-x: auto; border-collapse: collapse; font-size: 12px; }\n.ssDoc th, .ssDoc td { padding: 6px 10px; border: .5px solid var(--ss-line); text-align: left; vertical-align: top; }\n.ssDoc th { background: var(--ss-fill); font-weight: 500; }\n.ssDoc img { max-width: 100%; height: auto; border-radius: var(--dsw-radius-sm); }\n\n/* ---- folded sections ------------------------------------------------------ */\n\n.ssFolds { display: grid; min-width: 0; grid-template-columns: minmax(0, 1fr); margin-top: 4px; border-top: .5px solid var(--ss-line); }\n.ssFold { min-width: 0; border-bottom: .5px solid var(--ss-line); }\n.ssFold > header { display: flex; min-height: 40px; align-items: center; justify-content: space-between; gap: 12px; }\n.ssFold > header > button {\n  display: flex;\n  min-width: 0;\n  flex: 1;\n  align-items: center;\n  gap: 8px;\n  margin-left: -4px;\n  border: 0;\n  border-radius: var(--dsw-radius-sm);\n  padding: 8px 4px;\n  color: var(--ss-text);\n  background: transparent;\n  font: inherit;\n  font-size: 13px;\n  font-weight: 500;\n  line-height: 20px;\n  text-align: left;\n  cursor: pointer;\n}\n.ssChevron { flex: none; color: var(--ss-faint); transform: rotate(-90deg); transition: transform 180ms cubic-bezier(.2, 0, 0, 1), color 120ms ease; }\n.ssFold[data-open] > header > button > .ssChevron { transform: none; }\n.ssFold > header > button:hover > .ssChevron { color: var(--ss-text); }\n.ssFold > header > button > small { min-width: 0; overflow: hidden; color: var(--ss-faint); font-size: 12px; font-weight: 400; text-overflow: ellipsis; white-space: nowrap; }\n.ssFold > header > div { display: flex; align-items: center; gap: 6px; }\n.ssFoldBody { display: grid; min-width: 0; grid-template-columns: minmax(0, 1fr); gap: 10px; padding: 2px 0 14px; }\n\n/* ---- versions and files --------------------------------------------------- */\n\n.ssVersions { display: grid; grid-template-columns: minmax(0, 1fr); gap: 1px; margin: 0; padding: 0; list-style: none; }\n.ssVersions li { display: flex; min-height: 34px; align-items: center; gap: 10px; border-radius: var(--dsw-radius-md); padding: 3px 6px; transition: background-color 120ms ease; }\n.ssVersions li:hover { background: var(--ss-hover); }\n.ssVersions time { color: var(--ss-muted); font-size: 12px; font-variant-numeric: tabular-nums; }\n.ssVersions li > span { flex: 1; }\n.ssTrashList li { flex-wrap: wrap; padding-block: 10px; }\n.ssTrashList li > span { flex: 0 0 auto; }\n.ssTrashList li > .ssRowText { flex: 1 1 220px; }\n.ssTrashTags { display: flex; flex-wrap: wrap; gap: 6px; }\n.ssTrashList li > .ssTrashActions { display: flex; flex: 0 0 auto; margin-left: auto; gap: 6px; }\n.ssResources { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }\n.ssResources code { padding: 1px 8px; border-radius: 999px; color: var(--ss-muted); background: var(--ss-fill); font: 11px/17px var(--ss-code); }\n\n.ssEditor { width: 100%; min-height: 420px; resize: vertical; border: .5px solid var(--ss-field-line); border-radius: var(--dsw-radius-md); outline: 0; padding: 10px 12px; color: var(--ss-text); background: var(--ss-input); font: 12px/1.6 var(--ss-code); tab-size: 2; transition: border-color 120ms ease; }\n.ssEditor:focus { border-color: var(--ss-accent); }\n\n/* ---- dialogs -------------------------------------------------------------- */\n\n.ssForm { display: grid; gap: 14px; }\n.ssField { display: grid; gap: 6px; }\n.ssField > label { color: var(--ss-muted); font-size: 12px; font-weight: 500; line-height: 18px; }\n.ssForm input:not([type='checkbox']):not([type='radio']),\n.ssForm textarea { width: 100%; border: .5px solid var(--ss-field-line); border-radius: var(--dsw-radius-md); outline: 0; padding: 7px 10px; color: var(--ss-text); background: var(--ss-input); font: inherit; font-size: 13px; line-height: 20px; transition: border-color 120ms ease; }\n.ssForm input:not([type='checkbox']):not([type='radio']):focus,\n.ssForm textarea:focus { border-color: var(--ss-accent); }\n.ssForm textarea { resize: vertical; }\n.ssForm small { color: var(--ss-faint); font-size: 11px; line-height: 16px; }\n.ssFormError { margin-right: auto; color: var(--ss-danger); font-size: 12px; }\n\n/* ---- controls ------------------------------------------------------------- */\n\n.ssButton {\n  display: inline-flex;\n  min-height: 28px;\n  align-items: center;\n  justify-content: center;\n  gap: 6px;\n  border: .5px solid transparent;\n  border-radius: var(--dsw-radius-md);\n  padding: 0 10px;\n  color: var(--ss-text);\n  background: transparent;\n  font: inherit;\n  font-size: 12px;\n  line-height: 18px;\n  white-space: nowrap;\n  cursor: pointer;\n  transition: background-color 120ms ease, border-color 120ms ease, color 120ms ease;\n}\n.ssButton:disabled { cursor: default; opacity: .45; }\n.ssButton[data-variant='primary'] { color: var(--dsw-alias-label-inverse, #fff); background: var(--ss-accent); }\n.ssButton[data-variant='primary']:hover:not(:disabled) { background: color-mix(in srgb, var(--ss-accent) 88%, #fff); }\n.ssButton[data-variant='outline'] { border-color: var(--ss-field-line); }\n.ssButton[data-variant='outline']:hover:not(:disabled) { background: var(--ss-hover); }\n.ssButton[data-variant='ghost'] { color: var(--ss-muted); }\n.ssButton[data-variant='ghost']:hover:not(:disabled) { color: var(--ss-text); background: var(--ss-hover); }\n.ssButton[data-variant='danger'] { color: var(--dsw-alias-label-inverse, #fff); background: var(--ss-danger); }\n\n/*\n * The switch reads its colours from the theme directly, not from `--ss-*`:\n * the same component renders inside the page (`.ssShell`) and on the plugin's\n * detail page, which is outside that container. A token that only exists in\n * one of the two places leaves the other one painted with the page background,\n * which is exactly how \"on\" became invisible.\n */\n.ssSwitch { position: relative; display: inline-flex; width: 30px; height: 18px; flex: none; }\n.ssSwitch input { position: absolute; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: pointer; }\n.ssSwitch span {\n  width: 100%;\n  height: 100%;\n  border-radius: 999px;\n  /* Off: a filled track, so the control is visible before it is touched. The\n     mid grey sits against both the light and the dark surface. */\n  background: color-mix(\n    in srgb,\n    var(--dsw-alias-label-tertiary, #8a8a8a) 45%,\n    var(--dsw-alias-bg-layer-1, transparent)\n  );\n  transition: background-color 160ms ease;\n  pointer-events: none;\n}\n.ssSwitch span::after {\n  content: '';\n  position: absolute;\n  top: 2px;\n  left: 2px;\n  width: 14px;\n  height: 14px;\n  border-radius: 999px;\n  background: #fff;\n  box-shadow: 0 1px 2px rgb(0 0 0 / 20%);\n  transition: transform 160ms cubic-bezier(.2, 0, 0, 1);\n}\n/* On: the product accent, at full strength against the surface it sits on. */\n.ssSwitch input:checked + span { background: var(--dsw-alias-state-business-primary, #3b7ddd); }\n.ssSwitch input:checked + span::after { transform: translateX(12px); }\n.ssSwitch input:focus-visible + span { outline: 2px solid var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary, #3b7ddd)); outline-offset: 2px; }\n.ssSwitch input:disabled ~ span { opacity: .45; }\n\n.ssTag {\n  display: inline-flex;\n  align-items: center;\n  border: .5px solid var(--ss-line);\n  border-radius: 999px;\n  padding: 0 7px;\n  color: var(--ss-muted);\n  font-size: 11px;\n  line-height: 16px;\n  white-space: nowrap;\n}\n.ssTag[data-tone='quiet'] { border-color: transparent; background: var(--ss-fill); color: var(--ss-faint); }\n.ssTag[data-tone='success'] { border-color: transparent; background: color-mix(in srgb, var(--ss-success) 12%, transparent); color: var(--ss-success); }\n\n/*\n * The menu is portalled to the body, so it positions against the viewport and\n * inherits none of the page's tokens: the palette below is spelled out here so\n * a menu opened over any surface still reads correctly.\n */\n.ssMenu {\n  /* Portalled to the body, so it declares the tokens it reads instead of\n     inheriting them from the page's `.ssShell`. */\n  --ss-layer-1: var(--dsw-alias-bg-layer-1);\n  --ss-text: var(--dsw-alias-label-primary);\n  --ss-muted: var(--dsw-alias-label-secondary);\n  --ss-hover: var(--dsw-alias-interactive-bg-hover);\n  --ss-danger: var(--dsw-alias-state-error-primary);\n  --ss-focus: var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary));\n  --ss-card-line: var(--dsw-alias-settings-card-stroke);\n\n  z-index: 1000;\n  display: grid;\n  gap: 1px;\n  border: .5px solid var(--ss-card-line);\n  border-radius: var(--dsw-radius-md);\n  padding: 4px;\n  background: var(--ss-layer-1);\n  color: var(--ss-text);\n  font: 13px/20px var(--dsw-font-family, -apple-system, BlinkMacSystemFont, \"Segoe UI\", sans-serif);\n  box-shadow: 0 8px 24px rgb(0 0 0 / 18%);\n  animation: ss-menu-in 120ms cubic-bezier(.2, 0, 0, 1);\n}\n@keyframes ss-menu-in {\n  from { opacity: 0; transform: translateY(-2px); }\n  to { opacity: 1; transform: none; }\n}\n.ssMenu button {\n  border: 0;\n  border-radius: var(--dsw-radius-sm);\n  padding: 6px 8px;\n  color: var(--ss-text);\n  background: transparent;\n  font: inherit;\n  font-size: 12px;\n  line-height: 18px;\n  text-align: left;\n  cursor: pointer;\n}\n.ssMenu button:hover:not(:disabled),\n.ssMenu button:focus-visible { background: var(--ss-hover); }\n.ssMenu button:focus-visible { outline: 2px solid var(--ss-focus); outline-offset: -2px; }\n.ssMenu button:disabled { opacity: .45; cursor: default; }\n.ssMenu button {\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}\n.ssMenu button[data-danger] { color: var(--ss-danger); }\n.ssMenuAnchor { position: relative; display: inline-flex; }\n\n/* ---- modal ---------------------------------------------------------------- */\n\n.ssModalMask {\n  position: fixed;\n  inset: 0;\n  z-index: 900;\n  display: grid;\n  place-items: center;\n  padding: 24px;\n  background: rgb(0 0 0 / 32%);\n  animation: ss-fade 140ms ease;\n}\n@keyframes ss-fade {\n  from { opacity: 0; }\n  to { opacity: 1; }\n}\n.ssModal {\n  display: flex;\n  width: min(720px, 100%);\n  max-height: min(80vh, 720px);\n  flex-direction: column;\n  gap: 12px;\n  border-radius: var(--dsw-radius-lg);\n  padding: 18px 20px;\n  color: var(--ss-text);\n  background: var(--ss-bg);\n  box-shadow: 0 24px 64px rgb(0 0 0 / 28%);\n  animation: ss-arrive 180ms cubic-bezier(.2, 0, 0, 1);\n}\n.ssModal[data-wide] { width: min(960px, 100%); }\n.ssModalHead { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }\n.ssModalHead h3 { margin: 0; font-size: 15px; font-weight: 600; line-height: 24px; }\n.ssModalHead p { margin: 2px 0 0; color: var(--ss-muted); font-size: 12px; line-height: 18px; }\n.ssModalBody { min-height: 0; flex: 1; overflow-y: auto; }\n.ssModalFoot { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 8px; }\n\n/* ---- a line diff ---------------------------------------------------------- */\n\n.ssDiff { display: grid; grid-template-columns: minmax(0, 1fr); gap: 0; overflow: auto; border: .5px solid var(--ss-line); border-radius: var(--dsw-radius-md); font: 12px/1.6 var(--ss-code); }\n.ssDiff div { display: grid; grid-template-columns: 40px minmax(0, 1fr); gap: 8px; padding: 0 8px; white-space: pre-wrap; overflow-wrap: anywhere; }\n.ssDiff div > b { color: var(--ss-faint); font-weight: 400; text-align: right; font-variant-numeric: tabular-nums; }\n.ssDiff div[data-kind='add'] { background: color-mix(in srgb, var(--ss-success) 12%, transparent); }\n.ssDiff div[data-kind='remove'] { background: color-mix(in srgb, var(--ss-danger) 12%, transparent); }\n\n/* ---- groups --------------------------------------------------------------- */\n\n/*\n * A group reads as one movable block: its header is the handle, rules instead\n * of boxes keep it quiet, and the whole row answers the pointer so it is\n * clearly a target rather than a label.\n */\n.ssListGroup { position: relative; border-radius: var(--dsw-radius-md); transition: background-color 140ms ease; }\n.ssListTools { display: flex; justify-content: flex-end; margin: 8px 12px 0; }\n.ssListTools .ssLink { font-size: 11px; }\n\n.ssGroupName {\n  min-width: 0;\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}\n\n.ssDragGrip {\n  display: grid;\n  width: 12px;\n  height: 16px;\n  flex: none;\n  place-items: center;\n  border-radius: var(--dsw-radius-xs, 4px);\n  color: var(--ss-line-strong, var(--ss-faint));\n  opacity: .7;\n  cursor: grab;\n  transition: color 140ms ease, opacity 140ms ease, background-color 140ms ease;\n}\n.ssDragGrip:hover,\n.ssDragGrip:focus-visible { color: var(--ss-muted); opacity: 1; background: var(--ss-hover); }\n.ssDragGrip:focus-visible { outline: 2px solid var(--ss-focus); outline-offset: 1px; }\n.ssDragGrip:active { cursor: grabbing; }\n\n/* The dragged group fades where it came from; the target shows where it lands. */\n.ssListGroup[data-dragging] { opacity: .4; }\n.ssListGroup[data-drop]::before {\n  content: '';\n  position: absolute;\n  inset-inline: 6px;\n  top: -1px;\n  height: 2px;\n  border-radius: 999px;\n  background: var(--ss-accent);\n}\n.ssListGroup[data-drop] { background: color-mix(in srgb, var(--ss-accent) 7%, transparent); }\n\n.ssListTools { display: flex; justify-content: flex-end; margin: 8px 12px 0; }\n.ssListTools .ssLink { font-size: 11px; }\n\n.ssGroupName {\n  min-width: 0;\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}\n/* Only a real group can be renamed; the hint follows the pointer so the\n   gesture is discoverable without changing the resting look. */\n.ssGroupHead { display: flex; flex: 1; min-width: 0; align-items: center; gap: 2px; }\n.ssGroupHead .ssGroupToggle { flex: 1; min-width: 0; }\n.ssGroupCount {\n  flex: none;\n  color: var(--ss-faint);\n  font-size: 11px;\n  font-variant-numeric: tabular-nums;\n}\n.ssGroupSwitch { display: inline-flex; flex: none; align-items: center; gap: 4px; }\n.ssGroupSwitch .ssSwitch { width: 26px; height: 16px; }\n.ssGroupSwitch .ssSwitch span::after { width: 12px; height: 12px; }\n.ssGroupSwitch .ssSwitch input:checked + span::after { transform: translateX(10px); }\n/* Partly on: the same amber the warning state uses, so it reads as \"not simply off\". */\n.ssSwitch[data-mixed] span { background: var(--dsw-alias-state-warn-primary, #d9822b); }\n.ssSwitch[data-mixed] span::after { transform: translateX(6px); }\n\n/* ---- the composer's skill picker ------------------------------------------ */\n\n.ssPickerAnchor { display: inline-flex; }\n/* Sized to the plus control it sits beside, so the row keeps one rhythm. */\n.ssPickerButton {\n  display: grid;\n  width: 26px;\n  height: 26px;\n  place-items: center;\n  border: 0;\n  border-radius: var(--dsw-radius-sm);\n  padding: 0;\n  color: var(--dsw-alias-label-tertiary);\n  background: transparent;\n  cursor: pointer;\n  transition: color 120ms ease, background-color 120ms ease;\n}\n.ssPickerButton:hover,\n.ssPickerButton[aria-expanded='true'] { color: var(--dsw-alias-label-primary); background: var(--dsw-alias-interactive-bg-hover); }\n.ssPickerButton:focus-visible { outline: 2px solid var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary)); outline-offset: 1px; }\n\n.ssPicker {\n  /* Portalled: it declares the tokens it reads. */\n  --ss-text: var(--dsw-alias-label-primary);\n  --ss-muted: var(--dsw-alias-label-secondary);\n  --ss-faint: var(--dsw-alias-label-tertiary);\n  --ss-line: var(--dsw-alias-border-l2);\n  --ss-card-line: var(--dsw-alias-settings-card-stroke);\n  --ss-field-line: var(--dsw-alias-border-l4);\n  --ss-input: var(--dsw-alias-bg-layer-1);\n  --ss-layer-1: var(--dsw-alias-bg-layer-1);\n  --ss-hover: var(--dsw-alias-interactive-bg-hover);\n  --ss-accent: var(--dsw-alias-state-business-primary);\n  --ss-code: var(--ds-font-family-code, Consolas, monospace);\n  --ss-focus: var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary));\n\n  z-index: 1000;\n  display: flex;\n  overflow: hidden;\n  flex-direction: column;\n  max-height: min(420px, 60vh);\n  border: .5px solid var(--ss-card-line);\n  border-radius: var(--dsw-radius-lg);\n  background: var(--ss-layer-1);\n  color: var(--ss-text);\n  font: 13px/20px var(--dsw-font-family, -apple-system, BlinkMacSystemFont, \"Segoe UI\", sans-serif);\n  box-shadow: 0 12px 32px rgb(0 0 0 / 20%);\n  animation: ss-menu-in 120ms cubic-bezier(.2, 0, 0, 1);\n}\n.ssPickerHead { flex: none; padding: 8px; border-bottom: .5px solid var(--ss-line); }\n.ssPickerHead .ssSearch { width: 100%; }\n.ssPickerList { min-height: 0; flex: 1; overflow-y: auto; margin: 0; padding: 4px; list-style: none; }\n.ssPickerItem {\n  display: grid;\n  width: 100%;\n  gap: 1px;\n  border: 0;\n  border-radius: var(--dsw-radius-md);\n  padding: 6px 8px;\n  color: var(--ss-text);\n  background: transparent;\n  font: inherit;\n  text-align: left;\n  cursor: pointer;\n}\n.ssPickerItem:hover,\n.ssPickerItem:focus-visible { background: var(--ss-hover); outline: none; }\n.ssPickerItem strong { font-size: 13px; font-weight: 500; }\n.ssPickerItem small { overflow: hidden; color: var(--ss-faint); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }\n.ssPickerNote { padding: 14px 12px; text-align: center; }\n.ssPickerFoot { flex: none; padding: 6px 10px; border-top: .5px solid var(--ss-line); }\n.ssPickerFoot .ssLink { color: var(--ss-accent); }\n\n/* ---- a settings row on the plugin page ------------------------------------ */\n\n/*\n * This row renders on the plugin's detail page, outside `.ssShell`, so it\n * spells its colours out instead of inheriting tokens that only exist there.\n */\n.ssSetting { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; padding: 12px 0; }\n.ssSettingText { min-width: 0; flex: 1; }\n.ssSettingText h4 { margin: 0; color: var(--dsw-alias-label-primary); font-size: 13px; font-weight: 600; line-height: 20px; }\n.ssSettingText p { margin: 2px 0 0; color: var(--dsw-alias-label-tertiary); font-size: 12px; line-height: 18px; }\n.ssSettingError { flex: 1 1 100%; margin: 0; color: var(--dsw-alias-state-error-primary); font-size: 12px; }\n\n/* ---- narrow widths -------------------------------------------------------- */\n\n@media (max-width: 860px) {\n  .ssSplit { grid-template-columns: minmax(0, 1fr); }\n  .ssList { max-height: 360px; overflow-y: auto; }\n  .ssSkillsSplit { height: auto; }\n  .ssSkillsSplit > .ssList { height: auto; }\n  .ssSkillsSplit > .ssPane { overflow: visible; overscroll-behavior-y: auto; }\n}\n\n@media (max-width: 560px) {\n  .ssDetailHead { flex-direction: column; }\n  .ssDetailActions { justify-content: flex-start; }\n  .ssTabs { padding: 0 16px; }\n  .ssBody { padding: 12px 16px 20px; }\n  .ssMasthead { padding: var(--ss-head-top, 46px) 16px 0; }\n}\n\n.ssWarn { margin: 0; padding: 8px 12px; border-radius: var(--dsw-radius-md); color: var(--ss-text); background: color-mix(in srgb, var(--ss-warn) 11%, transparent); font-size: 12px; line-height: 18px; }\n\n@media (prefers-reduced-motion: reduce) {\n  .ssPage, .ssDetail, .ssEmpty, .ssBadge { animation: none; }\n  .ssUse, .ssChevron { transition: none; }\n  .ssSpinner { animation: none; }\n}\n"
+      tag.textContent = "/*\n * 技能管理. Quiet surfaces borrowed from the skills page this replaces:\n * hairlines instead of boxes, weight and grey for hierarchy, and short, soft\n * motion where something opens or arrives.\n *\n * Every class is prefixed `ss`, and every colour comes from a `--ss-*` token\n * declared once on `.ssShell`, so the sheet carries no dependency on another\n * plugin's variables.\n */\n\n.ssShell {\n  /*\n   * Where the page head starts, so it lines up with the sidebar's New Session\n   * row rather than floating above it.\n   *\n   * The centre column already clears the Windows caption (the frame pads it\n   * out); what remains is the sidebar's brand row above New Session: 40px of\n   * row plus that row's 6px offset. Those are the sidebar's own geometry, read\n   * from its published rules — never measured off its DOM, which belongs to\n   * another plugin.\n   *\n   * macOS pads nothing in the frame and keeps a 52px strip in the sidebar\n   * instead, so the value follows the frame's published clearance there.\n   */\n  --ss-head-top: 46px;\n  --ss-bg: var(--dsw-alias-bg-base);\n  --ss-layer-1: var(--dsw-alias-bg-layer-1);\n  --ss-fill: var(--dsw-alias-bg-module-platform);\n  --ss-input: var(--dsw-alias-bg-layer-1);\n  --ss-text: var(--dsw-alias-label-primary);\n  --ss-muted: var(--dsw-alias-label-secondary);\n  --ss-faint: var(--dsw-alias-label-tertiary);\n  --ss-line: var(--dsw-alias-border-l2);\n  --ss-line-strong: var(--dsw-alias-border-l3);\n  --ss-field-line: var(--dsw-alias-border-l4);\n  --ss-card-line: var(--dsw-alias-settings-card-stroke);\n  --ss-accent: var(--dsw-alias-state-business-primary);\n  --ss-hover: var(--dsw-alias-interactive-bg-hover);\n  --ss-danger: var(--dsw-alias-state-error-primary);\n  --ss-success: var(--dsw-alias-state-success-primary);\n  --ss-warn: var(--dsw-alias-state-warn-primary);\n  --ss-focus: var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary));\n  --ss-code: var(--ds-font-family-code, \"SFMono-Regular\", Consolas, monospace);\n  --ss-sans: var(--dsw-font-family, -apple-system, BlinkMacSystemFont, \"Segoe UI\", sans-serif);\n\n  box-sizing: border-box;\n  display: flex;\n  min-width: 0;\n  min-height: 0;\n  flex-direction: column;\n  overflow: hidden;\n  height: 100%;\n  color: var(--ss-text);\n  background: var(--ss-bg);\n  font: 13px/20px var(--ss-sans);\n  -webkit-tap-highlight-color: transparent;\n}\n/* Windows desktop: the frame pads out the caption, and the brand row is 40px\n   with New Session 6px below it. */\nhtml[data-windows-titlebar] .ssShell { --ss-head-top: 46px; }\n/* macOS desktop: the frame pads nothing and the sidebar keeps its own 52px\n   strip, whose published clearance is the same measure. */\nhtml[data-platform='darwin'] .ssShell { --ss-head-top: var(--dsh-frame-top-clearance, 48px); }\nhtml[data-platform='darwin'][data-fullscreen] .ssShell { --ss-head-top: 20px; }\nhtml[data-windows-titlebar][data-fullscreen] .ssShell { --ss-head-top: 16px; }\n/* Plain Web: no caption and no strip, so the sidebar's full brand row shows. */\nhtml:not([data-platform]):not([data-windows-titlebar]) .ssShell { --ss-head-top: 60px; }\n\n.ssShell *,\n.ssShell *::before,\n.ssShell *::after { box-sizing: border-box; }\n:where(.ssShell) :where(button, input, select, textarea) { color: inherit; font: inherit; }\n.ssShell button:focus-visible,\n.ssShell input:focus-visible,\n.ssShell select:focus-visible,\n.ssShell textarea:focus-visible,\n.ssShell summary:focus-visible { outline: var(--dsw-focus-ring-width, 2px) solid var(--ss-focus); outline-offset: 2px; }\n.ssShell :is(textarea, input:not([type='checkbox'], [type='radio'])):focus-visible { outline: none; }\n.ssShell input[type='search']:focus-visible { outline: 2px solid var(--ss-focus); outline-offset: -1px; }\n.ssShell code { font-family: var(--ss-code); font-size: .92em; }\n\n/* ---- the page frame ------------------------------------------------------- */\n\n/*\n * The page head sits where the sidebar's New Session row sits.\n *\n * A global panel occupies the centre column, whose own top already clears the\n * Windows caption (`.frame` padding). What is left is the sidebar's brand row:\n * `windowDrag` measures the real offsets and publishes them as variables, and\n * the fallback below is the same sum for a composition that does not.\n */\n/* The one header block: the title row, then the tab row, then one hairline. */\n.ssHead {\n  display: flex;\n  flex: none;\n  flex-direction: column;\n  border-bottom: .5px solid var(--ss-line);\n  background: var(--ss-bg);\n}\n\n.ssMasthead {\n  display: flex;\n  align-items: flex-end;\n  gap: 12px;\n  padding: var(--ss-head-top, 46px) 24px 0;\n}\n.ssHeading { display: flex; min-width: 0; flex: 1; flex-direction: column; gap: 1px; padding-bottom: 8px; }\n.ssHeading h2 { margin: 0; font-size: 14px; font-weight: 600; line-height: 22px; }\n.ssHeading p { margin: 0; overflow: hidden; color: var(--ss-faint); font-size: 12px; line-height: 18px; text-overflow: ellipsis; white-space: nowrap; }\n.ssMastheadActions { display: flex; flex: none; align-items: center; gap: 8px; padding-bottom: 8px; }\n\n.ssTabs { display: flex; min-width: 0; flex: none; gap: 22px; overflow-x: auto; padding: 0 24px; scrollbar-width: none; }\n.ssTabs::-webkit-scrollbar { display: none; }\n.ssTabs button {\n  position: relative;\n  min-width: max-content;\n  /* The header's own hairline is the rule the selected tab sits on; a tab's\n     underline covers it rather than stacking a second one. */\n  margin-bottom: -1px;\n  border: 0;\n  border-bottom: 2px solid transparent;\n  padding: 6px 1px 9px;\n  color: var(--ss-faint);\n  background: none;\n  font-size: 13px;\n  line-height: 20px;\n  cursor: pointer;\n}\n.ssTabs button:hover { color: var(--ss-text); }\n.ssTabs button[data-active] { border-bottom-color: var(--ss-text); color: var(--ss-text); }\n\n.ssBody { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior-y: contain; padding: 16px 24px 24px; }\n.ssPage { display: flex; min-width: 0; flex-direction: column; gap: 12px; animation: ss-arrive 220ms cubic-bezier(.2, 0, 0, 1); }\n\n@keyframes ss-arrive {\n  from { opacity: 0; transform: translateY(4px); }\n  to { opacity: 1; transform: none; }\n}\n@keyframes ss-pop {\n  0% { opacity: 0; transform: scale(.6); }\n  70% { transform: scale(1.08); }\n  100% { opacity: 1; transform: none; }\n}\n@keyframes ss-spin {\n  to { transform: rotate(360deg); }\n}\n\n/* ---- text, links, feedback ------------------------------------------------ */\n\n.ssMuted { margin: 0; color: var(--ss-faint); font-size: 12px; line-height: 18px; }\n.ssBusy { display: inline-flex; align-items: center; gap: 8px; padding: 6px 0; color: var(--ss-muted); font-size: 12px; line-height: 18px; }\n.ssSpinner {\n  width: 12px;\n  height: 12px;\n  flex: none;\n  border: 1.5px solid var(--ss-line-strong, var(--ss-line));\n  border-top-color: var(--ss-accent);\n  border-radius: 999px;\n  animation: ss-spin 800ms linear infinite;\n}\n\n.ssLink {\n  border: 0;\n  border-radius: var(--dsw-radius-xs, 4px);\n  padding: 0 2px;\n  color: var(--ss-accent);\n  background: transparent;\n  font: inherit;\n  font-size: 12px;\n  line-height: 18px;\n  cursor: pointer;\n  transition: background-color 120ms ease;\n}\n.ssLink:hover { background: color-mix(in srgb, var(--ss-accent) 8%, transparent); }\n\n.ssAlert,\n.ssNotice {\n  display: flex;\n  align-items: center;\n  gap: 8px;\n  margin-bottom: 12px;\n  padding: 8px 10px 8px 12px;\n  border-radius: var(--dsw-radius-md);\n  color: var(--ss-text);\n  font-size: 12px;\n  line-height: 18px;\n}\n.ssAlert { background: color-mix(in srgb, var(--ss-danger) 9%, transparent); }\n.ssNotice { background: color-mix(in srgb, var(--ss-success) 9%, transparent); }\n.ssAlert > span,\n.ssNotice > span { min-width: 0; flex: 1; overflow-wrap: anywhere; }\n/* The failure list stays folded: a big group can fail many skills at once. */\n.ssAlertDetail { flex: 1 1 100%; min-width: 0; }\n.ssAlertDetail summary { width: fit-content; color: var(--ss-muted); cursor: pointer; }\n.ssAlertDetail ul { display: grid; gap: 4px; margin: 6px 0 0; padding: 0; list-style: none; }\n.ssAlertDetail li { display: flex; gap: 8px; min-width: 0; }\n.ssAlertDetail code { flex: none; color: var(--ss-text); font: 11px/18px var(--ss-code); }\n.ssAlertDetail li > span { min-width: 0; overflow-wrap: anywhere; color: var(--ss-muted); }\n/* An alert that carries a folded list lays out as a block, not one line. */\n.ssAlert:has(.ssAlertDetail) { flex-wrap: wrap; }\n\n.ssDismiss {\n  display: grid;\n  width: 20px;\n  height: 20px;\n  flex: none;\n  place-items: center;\n  border: 0;\n  border-radius: var(--dsw-radius-xs, 4px);\n  padding: 0;\n  color: inherit;\n  background: transparent;\n  font-size: 15px;\n  line-height: 1;\n  opacity: .55;\n  cursor: pointer;\n  transition: opacity 120ms ease, background-color 120ms ease;\n}\n.ssDismiss:hover { background: var(--ss-hover); opacity: 1; }\n\n\n.ssWarn { margin: 0; padding: 8px 12px; border-radius: var(--dsw-radius-md); color: var(--ss-text); background: color-mix(in srgb, var(--ss-warn) 11%, transparent); font-size: 12px; line-height: 18px; }\n\n\n/* ---- quiet buttons -------------------------------------------------------- */\n\n.ssIconButton {\n  display: grid;\n  width: 28px;\n  height: 28px;\n  flex: none;\n  place-items: center;\n  border: 0;\n  border-radius: var(--dsw-radius-sm);\n  padding: 0;\n  color: var(--ss-muted);\n  background: transparent;\n  cursor: pointer;\n  transition: color 120ms ease, background-color 120ms ease;\n}\n.ssIconButton:hover:not(:disabled),\n.ssIconButton[aria-expanded='true'] { color: var(--ss-text); background: var(--ss-hover); }\n.ssIconButton:disabled { cursor: default; opacity: .45; }\n\n/* ---- empty states --------------------------------------------------------- */\n\n.ssEmpty { display: grid; min-height: 280px; place-content: center; justify-items: center; gap: 6px; animation: ss-arrive 260ms cubic-bezier(.2, 0, 0, 1); }\n.ssEmptyGlyph { color: var(--ss-faint); font-size: 22px; line-height: 1; }\n.ssEmptyTitle { margin: 0; font-size: 14px; font-weight: 600; line-height: 22px; }\n.ssEmptyBody { margin: 0; max-width: 42ch; color: var(--ss-muted); font-size: 12px; line-height: 18px; text-align: center; }\n.ssEmptyActions { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin-top: 4px; }\n\n/* ---- list and detail ------------------------------------------------------ */\n\n.ssSplit { display: grid; min-height: 560px; grid-template-columns: minmax(268px, 340px) minmax(0, 1fr); gap: 12px; }\n.ssList,\n.ssPane { min-width: 0; border: .5px solid var(--ss-card-line); border-radius: var(--dsw-radius-lg); }\n.ssList { display: flex; flex-direction: column; overflow: hidden; padding-bottom: 6px; }\n.ssPane { padding: clamp(16px, 2vw, 24px); overflow: hidden; }\n\n/* Keep each list beside its detail while browsing long skills. */\n.ssSkillsSplit { height: max(320px, calc(100dvh - 320px)); min-height: 0; }\n.ssSkillsSplit > .ssList,\n.ssSkillsSplit > .ssPane { min-height: 0; overflow-y: auto; overscroll-behavior-y: contain; }\n.ssSkillsSplit > .ssList > * { flex-shrink: 0; }\n.ssSkillsSplit > .ssList { height: 100%; box-sizing: border-box; }\n\n.ssListBar { display: flex; align-items: center; gap: 8px; padding: 10px; border-bottom: .5px solid var(--ss-line); }\n.ssListBar > :first-child { min-width: 0; flex: 1; }\n.ssSearch {\n  width: 100%;\n  min-width: 0;\n  height: 28px;\n  border: .5px solid var(--ss-field-line);\n  border-radius: var(--dsw-radius-md);\n  outline: 0;\n  padding: 0 9px;\n  color: var(--ss-text);\n  background: var(--ss-input);\n  font: inherit;\n  font-size: 12px;\n  line-height: 26px;\n  transition: border-color 120ms ease;\n}\n.ssSearch::placeholder { color: var(--ss-faint); }\n.ssSearch:focus { border-color: var(--ss-accent); }\n.ssListNote { margin: 0; padding: 18px 16px; color: var(--ss-faint); font-size: 12px; line-height: 18px; text-align: center; }\n.ssListGroup h5 { display: flex; align-items: center; margin: 10px 10px 2px 12px; color: var(--ss-faint); font-size: 11px; font-weight: 500; letter-spacing: .02em; line-height: 16px; }\n.ssGroupToggle { display: flex; width: 100%; align-items: center; gap: 8px; border: 0; padding: 4px 0; color: inherit; background: transparent; font: inherit; text-align: start; cursor: pointer; }\n.ssGroupToggle > :nth-child(2) { min-width: 0; flex: 1; overflow: hidden; text-overflow: ellipsis; }\n.ssGroupToggle > :last-child { flex: none; }\n.ssGroupToggle small { display: block; overflow: hidden; font-size: 10px; font-weight: 400; text-overflow: ellipsis; }\n\n/* A skill row: icon, name and one line, then Use on hover and the switch. */\n.ssIcon {\n  display: grid;\n  width: 30px;\n  height: 30px;\n  flex: none;\n  place-items: center;\n  border-radius: var(--dsw-radius-md);\n  color: var(--ss-muted);\n  background: var(--ss-fill);\n  font-size: 13px;\n  font-weight: 600;\n  line-height: 1;\n  transition: color 140ms ease, background-color 140ms ease;\n}\n.ssRow {\n  position: relative;\n  display: flex;\n  align-items: center;\n  gap: 6px;\n  margin: 2px 6px 0;\n  padding-right: 8px;\n  border-radius: var(--dsw-radius-md);\n  transition: background-color 140ms ease;\n}\n.ssRow:hover { background: var(--ss-hover); }\n.ssRow[data-selected] { background: var(--ss-fill); }\n.ssRow[data-selected] .ssIcon { color: var(--ss-text); background: var(--ss-layer-1, var(--ss-hover)); }\n.ssRow[data-off] .ssRowText { opacity: .55; }\n.ssRowMain { display: flex; min-width: 0; flex: 1; align-items: center; gap: 10px; border: 0; padding: 8px 0 8px 8px; color: var(--ss-text); background: transparent; font: inherit; text-align: left; cursor: pointer; }\n.ssRowMain:focus-visible { border-radius: var(--dsw-radius-md); outline: none; box-shadow: inset 0 0 0 2px var(--ss-focus); }\n.ssRowText { display: grid; min-width: 0; gap: 1px; transition: opacity 140ms ease; }\n.ssRowText strong { display: flex; min-width: 0; align-items: center; gap: 6px; font-size: 13px; font-weight: 500; line-height: 20px; white-space: nowrap; }\n.ssRowText strong > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }\n.ssRowText small { overflow: hidden; color: var(--ss-faint); font-size: 12px; line-height: 18px; text-overflow: ellipsis; white-space: nowrap; }\n.ssRowActions { display: flex; flex: none; align-items: center; gap: 8px; }\n.ssUse { opacity: 0; transform: translateX(4px); pointer-events: none; transition: opacity 140ms ease, transform 180ms cubic-bezier(.2, 0, 0, 1); }\n.ssRow:hover .ssUse,\n.ssRow:focus-within .ssUse { opacity: 1; transform: none; pointer-events: auto; }\n@media (hover: none) { .ssUse { opacity: 1; transform: none; pointer-events: auto; } }\n\n.ssProblems { margin: 12px 12px 4px; color: var(--ss-faint); font-size: 12px; line-height: 18px; }\n.ssProblems summary { width: fit-content; border-radius: var(--dsw-radius-xs, 4px); padding: 0 2px; cursor: pointer; }\n.ssProblems summary:hover { color: var(--ss-muted); }\n.ssProblems ul { display: grid; gap: 6px; margin: 8px 0 0; padding: 0; list-style: none; }\n.ssProblems li { display: grid; gap: 2px; }\n.ssProblems code { color: var(--ss-muted); font: 11px/16px var(--ss-code); }\n\n/* ---- detail --------------------------------------------------------------- */\n\n.ssDetail { display: grid; min-width: 0; grid-template-columns: minmax(0, 1fr); gap: 14px; animation: ss-arrive 200ms cubic-bezier(.2, 0, 0, 1); }\n.ssDetailHead { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }\n.ssDetailHead > div:first-child { display: grid; min-width: 0; gap: 4px; }\n.ssDetailHead h3 { margin: 0; overflow-wrap: anywhere; font-size: 17px; font-weight: 600; line-height: 26px; }\n.ssDetailHead p { margin: 0; color: var(--ss-muted); font-size: 13px; line-height: 20px; }\n.ssDetailActions { display: flex; flex: none; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 6px; }\n.ssMeta { display: flex; min-width: 0; flex-wrap: wrap; align-items: center; gap: 0 6px; color: var(--ss-faint); font-size: 12px; line-height: 18px; }\n.ssMeta > * + *::before { content: '·'; margin-right: 6px; color: var(--ss-line-strong, var(--ss-faint)); }\n.ssMeta code { min-width: 0; max-width: 100%; overflow: hidden; font: 11px/18px var(--ss-code); text-overflow: ellipsis; white-space: nowrap; }\n.ssInvocation { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }\n.ssInvocationHint { flex: 1 1 100%; margin: 0; color: var(--ss-faint); font-size: 12px; line-height: 18px; }\n.ssInvocationLabel { color: var(--ss-muted); font-size: 12px; line-height: 18px; }\n.ssInvocation select {\n  height: 28px;\n  /* The labels name both surfaces, so the field sizes to its longest option\n     instead of clipping at the column edge. */\n  min-width: 16em;\n  max-width: 100%;\n  border: .5px solid var(--ss-field-line);\n  border-radius: var(--dsw-radius-md);\n  padding: 0 24px 0 8px;\n  color: var(--ss-text);\n  background: var(--ss-input);\n  font-size: 12px;\n  line-height: 26px;\n  cursor: pointer;\n}\n.ssWhen { margin: 0; color: var(--ss-muted); font-size: 12px; line-height: 18px; }\n\n/* ---- a skill's SKILL.md, read as a document ------------------------------- */\n\n.ssDoc { min-width: 0; overflow-wrap: anywhere; color: var(--ss-text); font-size: 13px; line-height: 1.75; }\n.ssDoc > :first-child { margin-top: 0; }\n.ssDoc > :last-child { margin-bottom: 0; }\n.ssDoc h1, .ssDoc h2, .ssDoc h3, .ssDoc h4 { margin: 1.4em 0 .5em; color: var(--ss-text); font-weight: 600; line-height: 1.4; }\n.ssDoc h1 { font-size: 1.25em; }\n.ssDoc h2 { font-size: 1.1em; }\n.ssDoc h3, .ssDoc h4 { font-size: 1em; }\n.ssDoc p, .ssDoc ul, .ssDoc ol, .ssDoc blockquote, .ssDoc table, .ssDoc pre { margin: .7em 0; }\n.ssDoc ul, .ssDoc ol { padding-left: 1.5em; }\n.ssDoc li + li { margin-top: .25em; }\n.ssDoc li::marker { color: var(--ss-faint); }\n.ssDoc blockquote { margin-inline: 0; padding: .1em 1em; border-left: 2px solid var(--ss-line-strong, var(--ss-line)); color: var(--ss-muted); }\n.ssDoc code { padding: .12em .38em; border-radius: var(--dsw-radius-xs, 4px); color: var(--ss-text); background: var(--dsw-alias-markdown-inline-code, var(--ss-fill)); font: .9em/1.55 var(--ss-code); }\n.ssDoc pre { max-width: 100%; overflow: auto; padding: 10px 14px; border-radius: var(--dsw-radius-md); background: var(--dsw-alias-markdown-code-block, var(--ss-fill)); }\n.ssDoc pre code { padding: 0; background: transparent; font-size: 12px; }\n.ssDoc a { color: var(--ss-accent); text-decoration-thickness: 1px; text-underline-offset: 3px; }\n.ssDoc hr { margin: 1.6em 0; border: 0; border-top: .5px solid var(--ss-line); }\n.ssDoc table { display: block; max-width: 100%; overflow-x: auto; border-collapse: collapse; font-size: 12px; }\n.ssDoc th, .ssDoc td { padding: 6px 10px; border: .5px solid var(--ss-line); text-align: left; vertical-align: top; }\n.ssDoc th { background: var(--ss-fill); font-weight: 500; }\n.ssDoc img { max-width: 100%; height: auto; border-radius: var(--dsw-radius-sm); }\n\n/* ---- folded sections ------------------------------------------------------ */\n\n.ssFolds { display: grid; min-width: 0; grid-template-columns: minmax(0, 1fr); margin-top: 4px; border-top: .5px solid var(--ss-line); }\n.ssFold { min-width: 0; border-bottom: .5px solid var(--ss-line); }\n.ssFold > header { display: flex; min-height: 40px; align-items: center; justify-content: space-between; gap: 12px; }\n.ssFold > header > button {\n  display: flex;\n  min-width: 0;\n  flex: 1;\n  align-items: center;\n  gap: 8px;\n  margin-left: -4px;\n  border: 0;\n  border-radius: var(--dsw-radius-sm);\n  padding: 8px 4px;\n  color: var(--ss-text);\n  background: transparent;\n  font: inherit;\n  font-size: 13px;\n  font-weight: 500;\n  line-height: 20px;\n  text-align: left;\n  cursor: pointer;\n}\n.ssChevron { flex: none; color: var(--ss-faint); transform: rotate(-90deg); transition: transform 180ms cubic-bezier(.2, 0, 0, 1), color 120ms ease; }\n.ssFold[data-open] > header > button > .ssChevron { transform: none; }\n.ssFold > header > button:hover > .ssChevron { color: var(--ss-text); }\n.ssFold > header > button > small { min-width: 0; overflow: hidden; color: var(--ss-faint); font-size: 12px; font-weight: 400; text-overflow: ellipsis; white-space: nowrap; }\n.ssFold > header > div { display: flex; align-items: center; gap: 6px; }\n.ssFoldBody { display: grid; min-width: 0; grid-template-columns: minmax(0, 1fr); gap: 10px; padding: 2px 0 14px; }\n\n/* ---- versions and files --------------------------------------------------- */\n\n.ssVersions { display: grid; grid-template-columns: minmax(0, 1fr); gap: 1px; margin: 0; padding: 0; list-style: none; }\n.ssVersions li { display: flex; min-height: 34px; align-items: center; gap: 10px; border-radius: var(--dsw-radius-md); padding: 3px 6px; transition: background-color 120ms ease; }\n.ssVersions li:hover { background: var(--ss-hover); }\n.ssVersions time { color: var(--ss-muted); font-size: 12px; font-variant-numeric: tabular-nums; }\n.ssVersions li > span { flex: 1; }\n.ssTrashList li { flex-wrap: wrap; padding-block: 10px; }\n.ssTrashList li > span { flex: 0 0 auto; }\n.ssTrashList li > .ssRowText { flex: 1 1 220px; }\n.ssTrashTags { display: flex; flex-wrap: wrap; gap: 6px; }\n.ssTrashList li > .ssTrashActions { display: flex; flex: 0 0 auto; margin-left: auto; gap: 6px; }\n.ssResources { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }\n.ssResources code { padding: 1px 8px; border-radius: 999px; color: var(--ss-muted); background: var(--ss-fill); font: 11px/17px var(--ss-code); }\n\n.ssEditor { width: 100%; min-height: 420px; resize: vertical; border: .5px solid var(--ss-field-line); border-radius: var(--dsw-radius-md); outline: 0; padding: 10px 12px; color: var(--ss-text); background: var(--ss-input); font: 12px/1.6 var(--ss-code); tab-size: 2; transition: border-color 120ms ease; }\n.ssEditor:focus { border-color: var(--ss-accent); }\n\n/* ---- dialogs -------------------------------------------------------------- */\n\n.ssForm { display: grid; gap: 14px; }\n.ssField { display: grid; gap: 6px; }\n.ssField > label { color: var(--ss-muted); font-size: 12px; font-weight: 500; line-height: 18px; }\n.ssForm input:not([type='checkbox']):not([type='radio']),\n.ssForm textarea { width: 100%; border: .5px solid var(--ss-field-line); border-radius: var(--dsw-radius-md); outline: 0; padding: 7px 10px; color: var(--ss-text); background: var(--ss-input); font: inherit; font-size: 13px; line-height: 20px; transition: border-color 120ms ease; }\n.ssForm input:not([type='checkbox']):not([type='radio']):focus,\n.ssForm textarea:focus { border-color: var(--ss-accent); }\n.ssForm textarea { resize: vertical; }\n.ssForm small { color: var(--ss-faint); font-size: 11px; line-height: 16px; }\n.ssFormError { margin-right: auto; color: var(--ss-danger); font-size: 12px; }\n\n/* ---- controls ------------------------------------------------------------- */\n\n.ssButton {\n  display: inline-flex;\n  min-height: 28px;\n  align-items: center;\n  justify-content: center;\n  gap: 6px;\n  border: .5px solid transparent;\n  border-radius: var(--dsw-radius-md);\n  padding: 0 10px;\n  color: var(--ss-text);\n  background: transparent;\n  font: inherit;\n  font-size: 12px;\n  line-height: 18px;\n  white-space: nowrap;\n  cursor: pointer;\n  transition: background-color 120ms ease, border-color 120ms ease, color 120ms ease;\n}\n.ssButton:disabled { cursor: default; opacity: .45; }\n.ssButton[data-variant='primary'] { color: var(--dsw-alias-label-inverse, #fff); background: var(--ss-accent); }\n.ssButton[data-variant='primary']:hover:not(:disabled) { background: color-mix(in srgb, var(--ss-accent) 88%, #fff); }\n.ssButton[data-variant='outline'] { border-color: var(--ss-field-line); }\n.ssButton[data-variant='outline']:hover:not(:disabled) { background: var(--ss-hover); }\n.ssButton[data-variant='ghost'] { color: var(--ss-muted); }\n.ssButton[data-variant='ghost']:hover:not(:disabled) { color: var(--ss-text); background: var(--ss-hover); }\n.ssButton[data-variant='danger'] { color: var(--dsw-alias-label-inverse, #fff); background: var(--ss-danger); }\n\n/*\n * The switch reads its colours from the theme directly, not from `--ss-*`:\n * the same component renders inside the page (`.ssShell`) and on the plugin's\n * detail page, which is outside that container. A token that only exists in\n * one of the two places leaves the other one painted with the page background,\n * which is exactly how \"on\" became invisible.\n */\n.ssSwitch { position: relative; display: inline-flex; width: 30px; height: 18px; flex: none; }\n.ssSwitch input { position: absolute; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: pointer; }\n.ssSwitch span {\n  width: 100%;\n  height: 100%;\n  border-radius: 999px;\n  /* Off: a filled track, so the control is visible before it is touched. The\n     mid grey sits against both the light and the dark surface. */\n  background: color-mix(\n    in srgb,\n    var(--dsw-alias-label-tertiary, #8a8a8a) 45%,\n    var(--dsw-alias-bg-layer-1, transparent)\n  );\n  transition: background-color 160ms ease;\n  pointer-events: none;\n}\n.ssSwitch span::after {\n  content: '';\n  position: absolute;\n  top: 2px;\n  left: 2px;\n  width: 14px;\n  height: 14px;\n  border-radius: 999px;\n  background: #fff;\n  box-shadow: 0 1px 2px rgb(0 0 0 / 20%);\n  transition: transform 160ms cubic-bezier(.2, 0, 0, 1);\n}\n/* On: the product accent, at full strength against the surface it sits on. */\n.ssSwitch input:checked + span { background: var(--dsw-alias-state-business-primary, #3b7ddd); }\n.ssSwitch input:checked + span::after { transform: translateX(12px); }\n.ssSwitch input:focus-visible + span { outline: 2px solid var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary, #3b7ddd)); outline-offset: 2px; }\n.ssSwitch input:disabled ~ span { opacity: .45; }\n\n.ssTag {\n  display: inline-flex;\n  align-items: center;\n  border: .5px solid var(--ss-line);\n  border-radius: 999px;\n  padding: 0 7px;\n  color: var(--ss-muted);\n  font-size: 11px;\n  line-height: 16px;\n  white-space: nowrap;\n}\n.ssTag[data-tone='quiet'] { border-color: transparent; background: var(--ss-fill); color: var(--ss-faint); }\n.ssTag[data-tone='success'] { border-color: transparent; background: color-mix(in srgb, var(--ss-success) 12%, transparent); color: var(--ss-success); }\n\n/*\n * The menu is portalled to the body, so it positions against the viewport and\n * inherits none of the page's tokens: the palette below is spelled out here so\n * a menu opened over any surface still reads correctly.\n */\n.ssMenu {\n  /* Portalled to the body, so it declares the tokens it reads instead of\n     inheriting them from the page's `.ssShell`. */\n  --ss-layer-1: var(--dsw-alias-bg-layer-1);\n  --ss-text: var(--dsw-alias-label-primary);\n  --ss-muted: var(--dsw-alias-label-secondary);\n  --ss-hover: var(--dsw-alias-interactive-bg-hover);\n  --ss-danger: var(--dsw-alias-state-error-primary);\n  --ss-focus: var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary));\n  --ss-card-line: var(--dsw-alias-settings-card-stroke);\n\n  z-index: 1000;\n  display: grid;\n  gap: 1px;\n  border: .5px solid var(--ss-card-line);\n  border-radius: var(--dsw-radius-md);\n  padding: 4px;\n  background: var(--ss-layer-1);\n  color: var(--ss-text);\n  font: 13px/20px var(--dsw-font-family, -apple-system, BlinkMacSystemFont, \"Segoe UI\", sans-serif);\n  box-shadow: 0 8px 24px rgb(0 0 0 / 18%);\n  animation: ss-menu-in 120ms cubic-bezier(.2, 0, 0, 1);\n}\n@keyframes ss-menu-in {\n  from { opacity: 0; transform: translateY(-2px); }\n  to { opacity: 1; transform: none; }\n}\n.ssMenu button {\n  border: 0;\n  border-radius: var(--dsw-radius-sm);\n  padding: 6px 8px;\n  color: var(--ss-text);\n  background: transparent;\n  font: inherit;\n  font-size: 12px;\n  line-height: 18px;\n  text-align: left;\n  cursor: pointer;\n}\n.ssMenu button:hover:not(:disabled),\n.ssMenu button:focus-visible { background: var(--ss-hover); }\n.ssMenu button:focus-visible { outline: 2px solid var(--ss-focus); outline-offset: -2px; }\n.ssMenu button:disabled { opacity: .45; cursor: default; }\n.ssMenu button {\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}\n.ssMenu button[data-danger] { color: var(--ss-danger); }\n.ssMenuAnchor { position: relative; display: inline-flex; }\n\n/* ---- modal ---------------------------------------------------------------- */\n\n.ssModalMask {\n  position: fixed;\n  inset: 0;\n  z-index: 900;\n  display: grid;\n  place-items: center;\n  padding: 24px;\n  background: rgb(0 0 0 / 32%);\n  animation: ss-fade 140ms ease;\n}\n@keyframes ss-fade {\n  from { opacity: 0; }\n  to { opacity: 1; }\n}\n.ssModal {\n  display: flex;\n  width: min(720px, 100%);\n  max-height: min(80vh, 720px);\n  flex-direction: column;\n  gap: 12px;\n  border-radius: var(--dsw-radius-lg);\n  padding: 18px 20px;\n  color: var(--ss-text);\n  background: var(--ss-bg);\n  box-shadow: 0 24px 64px rgb(0 0 0 / 28%);\n  animation: ss-arrive 180ms cubic-bezier(.2, 0, 0, 1);\n}\n.ssModal[data-wide] { width: min(960px, 100%); }\n.ssModalHead { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }\n.ssModalHead h3 { margin: 0; font-size: 15px; font-weight: 600; line-height: 24px; }\n.ssModalHead p { margin: 2px 0 0; color: var(--ss-muted); font-size: 12px; line-height: 18px; }\n.ssModalBody { min-height: 0; flex: 1; overflow-y: auto; }\n.ssModalFoot { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 8px; }\n\n/* ---- a line diff ---------------------------------------------------------- */\n\n.ssDiff { display: grid; grid-template-columns: minmax(0, 1fr); gap: 0; overflow: auto; border: .5px solid var(--ss-line); border-radius: var(--dsw-radius-md); font: 12px/1.6 var(--ss-code); }\n.ssDiff div { display: grid; grid-template-columns: 40px minmax(0, 1fr); gap: 8px; padding: 0 8px; white-space: pre-wrap; overflow-wrap: anywhere; }\n.ssDiff div > b { color: var(--ss-faint); font-weight: 400; text-align: right; font-variant-numeric: tabular-nums; }\n.ssDiff div[data-kind='add'] { background: color-mix(in srgb, var(--ss-success) 12%, transparent); }\n.ssDiff div[data-kind='remove'] { background: color-mix(in srgb, var(--ss-danger) 12%, transparent); }\n\n/* ---- groups --------------------------------------------------------------- */\n\n/*\n * A group reads as one movable block: its header is the handle, rules instead\n * of boxes keep it quiet, and the whole row answers the pointer so it is\n * clearly a target rather than a label.\n */\n.ssListGroup { position: relative; border-radius: var(--dsw-radius-md); transition: background-color 140ms ease; }\n.ssListTools { display: flex; justify-content: flex-end; margin: 8px 12px 0; }\n.ssListTools .ssLink { font-size: 11px; }\n\n.ssGroupName {\n  min-width: 0;\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}\n\n.ssDragGrip {\n  display: grid;\n  width: 12px;\n  height: 16px;\n  flex: none;\n  place-items: center;\n  border-radius: var(--dsw-radius-xs, 4px);\n  color: var(--ss-line-strong, var(--ss-faint));\n  opacity: .7;\n  cursor: grab;\n  transition: color 140ms ease, opacity 140ms ease, background-color 140ms ease;\n}\n.ssDragGrip:hover,\n.ssDragGrip:focus-visible { color: var(--ss-muted); opacity: 1; background: var(--ss-hover); }\n.ssDragGrip:focus-visible { outline: 2px solid var(--ss-focus); outline-offset: 1px; }\n.ssDragGrip:active { cursor: grabbing; }\n\n/* The dragged group fades where it came from; the target shows where it lands. */\n.ssListGroup[data-dragging] { opacity: .4; }\n.ssListGroup[data-drop]::before {\n  content: '';\n  position: absolute;\n  inset-inline: 6px;\n  top: -1px;\n  height: 2px;\n  border-radius: 999px;\n  background: var(--ss-accent);\n}\n.ssListGroup[data-drop] { background: color-mix(in srgb, var(--ss-accent) 7%, transparent); }\n\n.ssListTools { display: flex; justify-content: flex-end; margin: 8px 12px 0; }\n.ssListTools .ssLink { font-size: 11px; }\n\n.ssGroupName {\n  min-width: 0;\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}\n/* Only a real group can be renamed; the hint follows the pointer so the\n   gesture is discoverable without changing the resting look. */\n.ssGroupHead { display: flex; flex: 1; min-width: 0; align-items: center; gap: 2px; }\n.ssGroupHead .ssGroupToggle { flex: 1; min-width: 0; }\n.ssGroupCount {\n  flex: none;\n  color: var(--ss-faint);\n  font-size: 11px;\n  font-variant-numeric: tabular-nums;\n}\n.ssGroupSwitch { display: inline-flex; flex: none; align-items: center; gap: 4px; }\n.ssGroupSwitch .ssSwitch { width: 26px; height: 16px; }\n.ssGroupSwitch .ssSwitch span::after { width: 12px; height: 12px; }\n.ssGroupSwitch .ssSwitch input:checked + span::after { transform: translateX(10px); }\n/* Partly on: the same amber the warning state uses, so it reads as \"not simply off\". */\n.ssSwitch[data-mixed] span { background: var(--dsw-alias-state-warn-primary, #d9822b); }\n.ssSwitch[data-mixed] span::after { transform: translateX(6px); }\n\n/* ---- the composer's skill picker ------------------------------------------ */\n\n.ssPickerAnchor { display: inline-flex; }\n/* Sized to the plus control it sits beside, so the row keeps one rhythm. */\n.ssPickerButton {\n  display: grid;\n  width: 26px;\n  height: 26px;\n  place-items: center;\n  border: 0;\n  border-radius: var(--dsw-radius-sm);\n  padding: 0;\n  color: var(--dsw-alias-label-tertiary);\n  background: transparent;\n  cursor: pointer;\n  transition: color 120ms ease, background-color 120ms ease;\n}\n.ssPickerButton:hover,\n.ssPickerButton[aria-expanded='true'] { color: var(--dsw-alias-label-primary); background: var(--dsw-alias-interactive-bg-hover); }\n.ssPickerButton:focus-visible { outline: 2px solid var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary)); outline-offset: 1px; }\n\n.ssPicker {\n  /* Portalled: it declares the tokens it reads. */\n  --ss-text: var(--dsw-alias-label-primary);\n  --ss-muted: var(--dsw-alias-label-secondary);\n  --ss-faint: var(--dsw-alias-label-tertiary);\n  --ss-line: var(--dsw-alias-border-l2);\n  --ss-card-line: var(--dsw-alias-settings-card-stroke);\n  --ss-field-line: var(--dsw-alias-border-l4);\n  --ss-input: var(--dsw-alias-bg-layer-1);\n  --ss-layer-1: var(--dsw-alias-bg-layer-1);\n  --ss-hover: var(--dsw-alias-interactive-bg-hover);\n  --ss-accent: var(--dsw-alias-state-business-primary);\n  --ss-code: var(--ds-font-family-code, Consolas, monospace);\n  --ss-focus: var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary));\n\n  z-index: 1000;\n  display: flex;\n  overflow: hidden;\n  flex-direction: column;\n  max-height: min(420px, 60vh);\n  border: .5px solid var(--ss-card-line);\n  border-radius: var(--dsw-radius-lg);\n  background: var(--ss-layer-1);\n  color: var(--ss-text);\n  font: 13px/20px var(--dsw-font-family, -apple-system, BlinkMacSystemFont, \"Segoe UI\", sans-serif);\n  box-shadow: 0 12px 32px rgb(0 0 0 / 20%);\n  animation: ss-menu-in 120ms cubic-bezier(.2, 0, 0, 1);\n}\n.ssPickerHead { flex: none; padding: 8px; border-bottom: .5px solid var(--ss-line); }\n.ssPickerHead .ssSearch { width: 100%; }\n.ssPickerList { min-height: 0; flex: 1; overflow-y: auto; margin: 0; padding: 4px; list-style: none; }\n.ssPickerItem {\n  display: grid;\n  width: 100%;\n  gap: 1px;\n  border: 0;\n  border-radius: var(--dsw-radius-md);\n  padding: 6px 8px;\n  color: var(--ss-text);\n  background: transparent;\n  font: inherit;\n  text-align: left;\n  cursor: pointer;\n}\n.ssPickerItem:hover,\n.ssPickerItem:focus-visible { background: var(--ss-hover); outline: none; }\n.ssPickerItem strong { font-size: 13px; font-weight: 500; }\n.ssPickerItem small { overflow: hidden; color: var(--ss-faint); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }\n.ssPickerNote { padding: 14px 12px; text-align: center; }\n.ssPickerFoot { flex: none; padding: 6px 10px; border-top: .5px solid var(--ss-line); }\n.ssPickerFoot .ssLink { color: var(--ss-accent); }\n\n/* ---- a settings row on the plugin page ------------------------------------ */\n\n/*\n * This row renders on the plugin's detail page, outside `.ssShell`, so it\n * spells its colours out instead of inheriting tokens that only exist there.\n */\n.ssSetting { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; padding: 12px 0; }\n.ssSettingText { min-width: 0; flex: 1; }\n.ssSettingText h4 { margin: 0; color: var(--dsw-alias-label-primary); font-size: 13px; font-weight: 600; line-height: 20px; }\n.ssSettingText p { margin: 2px 0 0; color: var(--dsw-alias-label-tertiary); font-size: 12px; line-height: 18px; }\n.ssSettingError { flex: 1 1 100%; margin: 0; color: var(--dsw-alias-state-error-primary); font-size: 12px; }\n\n/* ---- narrow widths -------------------------------------------------------- */\n\n@media (max-width: 860px) {\n  .ssSplit { grid-template-columns: minmax(0, 1fr); }\n  .ssList { max-height: 360px; overflow-y: auto; }\n  .ssSkillsSplit { height: auto; }\n  .ssSkillsSplit > .ssList { height: auto; }\n  .ssSkillsSplit > .ssPane { overflow: visible; overscroll-behavior-y: auto; }\n}\n\n@media (max-width: 560px) {\n  .ssDetailHead { flex-direction: column; }\n  .ssDetailActions { justify-content: flex-start; }\n  .ssTabs { padding: 0 16px; }\n  .ssBody { padding: 12px 16px 20px; }\n  .ssMasthead { padding: var(--ss-head-top, 46px) 16px 0; }\n}\n\n.ssWarn { margin: 0; padding: 8px 12px; border-radius: var(--dsw-radius-md); color: var(--ss-text); background: color-mix(in srgb, var(--ss-warn) 11%, transparent); font-size: 12px; line-height: 18px; }\n\n@media (prefers-reduced-motion: reduce) {\n  .ssPage, .ssDetail, .ssEmpty { animation: none; }\n  .ssUse, .ssChevron { transition: none; }\n  .ssSpinner { animation: none; }\n}\n\n/* ------------------------------------------------------------ plugin skills */\n\n/*\n * The plugin tab reuses the skills tab's split verbatim, so both lists scroll\n * the same way. Only the pane differs: it stacks the explanation above the\n * detail instead of being one scroll container for the detail alone.\n *\n * The pane stays a single scroll container — `min-height: 0` lets it shrink\n * inside the grid, and the overflow is already set by `.ssSkillsSplit`.\n */\n.ssPaneStack { display: flex; flex-direction: column; gap: 12px; }\n.ssPaneStack > .ssPluginIntro,\n.ssPaneStack > .ssListNote { flex: none; margin: 0; }\n.ssPluginIntro { margin: 0; padding: 10px 12px; border-radius: var(--dsw-radius-md); color: var(--ss-muted); background: var(--ss-fill); font-size: 12px; line-height: 18px; }\n\n/* --------------------------------------------------------------- translate */\n\n/*\n * The body and its translation share one column: the bar sits above the text\n * and never moves it, so toggling between the two does not reflow the page.\n */\n.ssBody2 { display: flex; flex-direction: column; gap: 8px; min-width: 0; }\n.ssBodyNote { margin: 0; font-size: 12px; line-height: 18px; }"
       return () => {
         if (tag !== null && tag.parentNode !== null) tag.parentNode.removeChild(tag)
       }

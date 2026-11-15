@@ -35,11 +35,28 @@
 - **新建**：指定名字、描述、技能目录与分组
 - **删除**：移进回收站
 
+**插件技能**
+
+- 第三个分区，按**插件包**分组列出随包发布的技能，**全只读**：不编辑、不删除、不进回收站
+- 每条标出加载状态：**已加载**（模型现在就能用）／**按模式加载**（插件注册了，但只在它自己的模式内生效，例如写作模式）／**未注册**（包里有文件，但插件从未注册给 DSH，模型看不到）
+- 只读的原因：这些文件归插件所有，插件更新会覆盖，改不改都一样
+
 **回收站**
 
 - 列出已删除的技能，含删除时间、体积、原路径
 - 恢复到原位置，或彻底删除
 - 支持清空整个回收站
+
+**翻译**
+
+- 技能详情页标题行有「翻译」，正文可翻成界面语言；原文始终保留，再点一次切回
+- 简介（`description`）可单独翻译，不必翻整篇正文
+- 走 DSH 自己的 `translator` 服务，默认 Bing 免费端点；provider 在 DSH 设置里选，本插件不另设选择器
+- 长正文按段落自动分段翻译（DSH 单次上限 4000 字，实测多数技能正文超限）
+
+**技能选择器**
+
+- 输入框加号左边的按钮，列表同时包含本地技能与**已加载的插件技能**——和斜杠命令能用的集合一致
 
 ## 架构
 
@@ -75,6 +92,11 @@ Browser（client.js）                 Host（index.js）
 | `POST /skill-workshop/version/restore` | 恢复历史版本 |
 | `POST /skill-workshop/trash/{restore,purge,empty}` | 恢复 / 彻底删除 / 清空 |
 | `POST /skill-workshop/groups/{create,rename,delete,assign,reorder,invocation}` | 分组增删改名 / 移动技能 / 排序 / 整组启停 |
+| `GET /skill-workshop/plugin-skills` | 插件自带技能，按包分组并标注加载状态 |
+| `GET /skill-workshop/plugin-skills/skill` | 单个插件技能的正文（路径由服务端重新扫描解析，不信任传入路径） |
+| `POST /skill-workshop/translate` | 翻译正文或简介（`field: 'body' \| 'description'`），长文自动分段 |
+
+**只读边界**：`plugin-skills` 只有 GET，没有任何写路由——包里的文件归插件所有，改了会被下次更新覆盖。
 
 ## 数据
 
