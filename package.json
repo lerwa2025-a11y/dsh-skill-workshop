@@ -1,6 +1,6 @@
 {
   "name": "dsh-skill-workshop",
-  "version": "0.2.0",
+  "version": "1.0.0",
   "description": "技能管理：技能、插件技能与回收站三个分区。本地技能可分组、编辑、开关、版本回溯；插件自带技能只读展示并标注加载状态；正文与简介可翻译",
   "license": "MIT",
   "type": "module",
@@ -60,6 +60,7 @@
     "locale/*.json",
     "icon.svg",
     "README.md",
+    "CHANGELOG.md",
     "LICENSE"
   ],
   "private": false

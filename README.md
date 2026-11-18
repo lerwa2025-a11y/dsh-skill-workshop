@@ -1,6 +1,6 @@
 # dsh-skill-workshop
 
-在 DSH 左侧栏放一个入口，管理本机技能：**技能** 与 **回收站** 两个分区。
+在 DSH 左侧栏放一个入口，管理本机技能：**技能**、**插件技能** 与 **回收站** 三个分区。
 
 ## 归属
 
@@ -13,9 +13,18 @@
 
 - 不引用 mnemon 的任何代码、样式或服务；浏览器半只依赖 `react` 与 `react-dom`，宿主半只依赖 Node 内置模块。
 - 侧边栏入口、页面、文件读写、版本与回收站全部由本插件自己提供。
-- 只保留上游的**两个分区**（技能 / 回收站），去掉了进化、评测、市场。
+- 三个分区：**技能**（本地技能，可编辑）、**插件技能**（随插件包发布，只读并标注加载状态）、**回收站**。
 
 问题与建议请提到[本仓库](https://github.com/lerwa2025-a11y/dsh-skill-workshop/issues)。
+
+## 版本
+
+当前稳定版 **1.0.0**，见 [CHANGELOG.md](./CHANGELOG.md)。
+
+```sh
+# 安装（Desktop profile；Web 端把 desktop 换成 web）
+dsh plugin --profile desktop add dsh-skill-workshop
+```
 
 ## 功能
 
